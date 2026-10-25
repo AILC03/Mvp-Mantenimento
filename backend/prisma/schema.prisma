@@ -1,0 +1,211 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  DRIVER
+  LEAD_MECHANIC
+  TECHNICIAN
+  WAREHOUSE_CLERK
+}
+
+enum TechnicalStatus {
+  PENDING_REVIEW
+  CLEARED
+  RESTRICTED
+}
+
+enum InspectionStage {
+  PRE_TRIP
+  POST_TRIP
+}
+
+enum VehicleType {
+  BUS
+  TRUCK
+}
+
+model User {
+  id                  String              @id @default(uuid()) @db.Uuid
+  username            String              @unique @db.VarChar(80)
+  email               String?             @unique @db.VarChar(254)
+  name                String              @db.VarChar(150)
+  passwordHash        String
+  role                UserRole
+  isActive            Boolean             @default(true)
+  createdAt           DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime            @updatedAt @db.Timestamptz(3)
+  operatedChecklists  TripChecklist[]     @relation("ChecklistDriver")
+  reviewedChecklists  TripChecklist[]     @relation("ChecklistReviewer")
+  reportedIncidents   Incident[]          @relation("IncidentReporter")
+  associatedIncidents Incident[]          @relation("IncidentAssociatedDriver")
+  resolvedIncidents   Incident[]          @relation("IncidentResolver")
+  technicalDecisions  TechnicalDecision[]
+  sessions            AuthSession[]
+  operationDraft      OperationDraft?
+  operationEvents     OperationEvent[]
+}
+
+// Agregado operativo versionado del MVP. Solo se modifica mediante comandos
+// autorizados y validados, nunca mediante PUT de un snapshot del navegador.
+model OperationState {
+  id        Int      @id
+  revision  Int      @default(0)
+  data      Json
+  imported  Boolean  @default(false)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+}
+
+model OperationDraft {
+  userId    String   @id @db.Uuid
+  form      Json
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model OperationEvent {
+  id        String   @id @db.Uuid
+  userId    String   @db.Uuid
+  type      String   @db.VarChar(50)
+  revision  Int
+  digest    String   @db.Char(64)
+  payload   Json
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  @@index([createdAt])
+}
+
+model AuthSession {
+  id        String   @id @default(uuid()) @db.Uuid
+  tokenHash String   @unique @db.Char(64)
+  userId    String   @db.Uuid
+  expiresAt DateTime @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Bus {
+  id                 String              @id @default(uuid()) @db.Uuid
+  fleetNumber        String              @unique @db.VarChar(30)
+  licensePlate       String?             @unique @db.VarChar(30)
+  vin                String?             @unique @db.VarChar(17)
+  brand              String?             @db.VarChar(80)
+  model              String?             @db.VarChar(80)
+  modelYear          Int?
+  vehicleType        VehicleType         @default(BUS)
+  odometerKm         Int                 @default(0)
+  notes              String              @default("")
+  version            Int                 @default(1)
+  isActive           Boolean             @default(true)
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime            @updatedAt @db.Timestamptz(3)
+  checklists         TripChecklist[]
+  incidents          Incident[]
+  technicalDecisions TechnicalDecision[]
+}
+
+// El último registro de decisión define la condición técnica.
+// Sin decisiones: pendiente de revisión, nunca autorización implícita.
+model TechnicalDecision {
+  id        String          @id @default(uuid()) @db.Uuid
+  busId     String          @db.Uuid
+  authorId  String          @db.Uuid
+  status    TechnicalStatus
+  notes     String
+  createdAt DateTime        @default(now()) @db.Timestamptz(3)
+  bus       Bus             @relation(fields: [busId], references: [id], onDelete: Restrict)
+  author    User            @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([busId, createdAt])
+}
+
+// Abierto mientras closedAt sea null. Índice parcial en la migración SQL.
+model TripChecklist {
+  id          String       @id @default(uuid()) @db.Uuid
+  busId       String       @db.Uuid
+  driverId    String       @db.Uuid
+  tripNotes   String?
+  startedAt   DateTime     @default(now()) @db.Timestamptz(3)
+  endedAt     DateTime?    @db.Timestamptz(3)
+  reviewerId  String?      @db.Uuid
+  reviewedAt  DateTime?    @db.Timestamptz(3)
+  reviewNotes String?
+  closedAt    DateTime?    @db.Timestamptz(3)
+  createdAt   DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime     @updatedAt @db.Timestamptz(3)
+  bus         Bus          @relation(fields: [busId], references: [id], onDelete: Restrict)
+  driver      User         @relation("ChecklistDriver", fields: [driverId], references: [id], onDelete: Restrict)
+  reviewer    User?        @relation("ChecklistReviewer", fields: [reviewerId], references: [id], onDelete: Restrict)
+  inspections Inspection[]
+
+  @@index([busId, createdAt])
+  @@index([driverId])
+  @@index([reviewerId])
+}
+
+model Inspection {
+  id           String          @id @default(uuid()) @db.Uuid
+  checklistId  String          @db.Uuid
+  stage        InspectionStage
+  odometerKm   Int?
+  // Respuestas con versión de formato; catálogo exacto pendiente del cliente.
+  answers      Json
+  formVersion  String          @db.VarChar(30)
+  submittedAt  DateTime        @default(now()) @db.Timestamptz(3)
+  checklist    TripChecklist   @relation(fields: [checklistId], references: [id], onDelete: Restrict)
+  observations Observation[]
+
+  @@unique([checklistId, stage])
+}
+
+// Se conserva lo declarado aunque se vincule con una incidencia conocida.
+model Observation {
+  id             String     @id @default(uuid()) @db.Uuid
+  inspectionId   String     @db.Uuid
+  incidentId     String?    @db.Uuid
+  busPart        String     @db.VarChar(100)
+  description    String
+  photoObjectKey String
+  createdAt      DateTime   @default(now()) @db.Timestamptz(3)
+  inspection     Inspection @relation(fields: [inspectionId], references: [id], onDelete: Restrict)
+  incident       Incident?  @relation(fields: [incidentId], references: [id], onDelete: Restrict)
+
+  @@index([inspectionId])
+  @@index([incidentId])
+}
+
+// Vida independiente del checklist; no exige orden para resolverla.
+model Incident {
+  id                 String        @id @default(uuid()) @db.Uuid
+  busId              String        @db.Uuid
+  reportedById       String        @db.Uuid
+  associatedDriverId String?       @db.Uuid
+  busPart            String        @db.VarChar(100)
+  description        String
+  photoObjectKey     String?
+  preventsOperation  Boolean
+  resolvedAt         DateTime?     @db.Timestamptz(3)
+  resolvedById       String?       @db.Uuid
+  resolutionNotes    String?
+  createdAt          DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime      @updatedAt @db.Timestamptz(3)
+  bus                Bus           @relation(fields: [busId], references: [id], onDelete: Restrict)
+  reportedBy         User          @relation("IncidentReporter", fields: [reportedById], references: [id], onDelete: Restrict)
+  associatedDriver   User?         @relation("IncidentAssociatedDriver", fields: [associatedDriverId], references: [id], onDelete: Restrict)
+  resolvedBy         User?         @relation("IncidentResolver", fields: [resolvedById], references: [id], onDelete: Restrict)
+  observations       Observation[]
+
+  @@index([busId, resolvedAt])
+  @@index([reportedById])
+  @@index([associatedDriverId])
+  @@index([resolvedById])
+}

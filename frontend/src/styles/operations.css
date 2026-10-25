@@ -1,0 +1,96 @@
+.server-tools {
+  position: fixed;
+  right: 24px;
+  bottom: 16px;
+  z-index: 60;
+  max-width: min(460px, calc(100vw - 32px));
+  color: var(--re-text);
+  font-size: 14px;
+  line-height: 1.7;
+  background: var(--re-surface);
+  border: 1px solid var(--re-border);
+  border-radius: 10px;
+  box-shadow: var(--re-shadow);
+}
+.server-tools > button {
+  width: 100%;
+  border-radius: 10px;
+}
+.server-tools button,
+.operations-error button {
+  min-height: 44px;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--re-brand);
+  background: var(--re-surface-soft);
+  border: 1px solid var(--re-control-border);
+  border-radius: 8px;
+}
+.server-tools :is(button, input):focus-visible {
+  outline: 3px solid var(--re-focus);
+  outline-offset: 2px;
+}
+.server-tools #server-tools-panel {
+  padding: 20px;
+  max-height: calc(100dvh - 160px);
+  overflow: auto;
+}
+.server-tools :is(h2, h3) {
+  font-size: 18px;
+  margin: 0 0 12px;
+}
+.server-tools p {
+  margin-block: 12px;
+}
+.server-tools #server-tools-panel > button {
+  margin: 6px 0;
+  width: 100%;
+}
+.server-tools label {
+  display: flex;
+  gap: 12px;
+  padding-block: 12px;
+}
+.server-tools input {
+  accent-color: var(--re-brand);
+  flex-shrink: 0;
+}
+.operations-saving,
+.operations-error {
+  position: fixed;
+  left: 50%;
+  bottom: 76px;
+  transform: translateX(-50%);
+  z-index: 100;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 16px 20px;
+  border: 1px solid var(--re-control-border);
+  border-radius: 10px;
+  background: var(--re-surface);
+  color: var(--re-text);
+  font-size: 16px;
+  box-shadow: 0 4px 30px rgb(24 50 35 / 15%);
+}
+.operations-error {
+  background: var(--re-danger-soft);
+  color: var(--re-danger);
+  border-color: var(--re-danger);
+}
+.operations-error button {
+  display: block;
+  margin-top: 12px;
+}
+@media (max-width: 768px) {
+  .server-tools {
+    right: 16px;
+    bottom: 12px;
+  }
+}
+@media print {
+  .server-tools,
+  .operations-error,
+  .operations-saving {
+    display: none;
+  }
+}

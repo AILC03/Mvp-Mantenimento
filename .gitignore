@@ -1,0 +1,39 @@
+# Dependencias y compilaciones
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Variables y secretos locales
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.pfx
+*.p12
+
+# Archivos locales y registros
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+playwright-report/
+test-results/
+
+# Herramientas locales de terceros: no son dependencias de la aplicación.
+# Conservar en disco; redistribución pendiente de revisión de licencias.
+/.opencode/skills/
+
+# Datos operativos privados: no versionar fotos, tickets ni respaldos
+/storage/
+/uploads/
+/backups/
+*.dump
+*.bak
+real-ejecutivo-respaldo-*.json

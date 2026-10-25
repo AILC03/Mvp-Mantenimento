@@ -1,0 +1,1272 @@
+/* Shared visual contract for EVERY operational view.
+   Loaded after the first requests iteration: equal specificity, one shared scale.
+   Preserve business layouts; only adapt them where larger controls need room. */
+.visual-refresh[data-page] {
+  font-size: 16px;
+  line-height: 1.6;
+  --muted: var(--re-text-muted);
+  --line: var(--re-border);
+}
+.visual-refresh[data-page] #main-content {
+  max-width: 1440px;
+  padding: 36px 32px 24px;
+}
+.visual-refresh[data-page]
+  #main-content
+  :is(input, select, textarea, button, a, summary) {
+  scroll-margin-block: 104px 24px;
+}
+.visual-refresh[data-page] .page-heading {
+  gap: 24px;
+  margin-bottom: 28px;
+}
+.visual-refresh[data-page] .page-heading > div {
+  min-width: 0;
+}
+.visual-refresh[data-page] .eyebrow {
+  color: var(--re-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.4px;
+  line-height: 1.6;
+}
+.visual-refresh[data-page] h1 {
+  font-family: var(--re-font-heading);
+  color: var(--re-text);
+  font-size: clamp(28px, 2.7vw, 36px);
+  line-height: 1.25;
+  letter-spacing: -1px;
+  font-weight: 750;
+  margin: 8px 0 12px;
+  max-width: none;
+  text-wrap: balance;
+}
+.visual-refresh[data-page] .page-heading p {
+  font-size: 16px;
+  color: var(--re-text-muted);
+  line-height: 1.7;
+  max-width: 66ch;
+}
+.visual-refresh[data-page] .heading-icon {
+  width: 60px;
+  height: 60px;
+  flex-shrink: 0;
+  background: var(--re-surface-soft);
+  color: var(--re-brand);
+  border: 1px solid var(--re-border);
+  border-radius: 14px;
+}
+.visual-refresh[data-page] .demo-banner {
+  gap: 12px;
+  padding: 16px 18px;
+  margin-bottom: 28px;
+  border: 1px solid var(--re-warning-border);
+  border-radius: 10px;
+  background: var(--re-warning-soft);
+  color: var(--re-warning);
+  font-size: 13px;
+  line-height: 1.75;
+  align-items: flex-start;
+}
+.visual-refresh[data-page] .demo-banner strong {
+  color: inherit;
+  font-weight: 700;
+}
+.visual-refresh[data-page] .demo-banner-icon {
+  color: inherit;
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+.visual-refresh[data-page] .card {
+  padding: 28px;
+  min-width: 0;
+  background: var(--re-surface);
+  border: 1px solid var(--re-border);
+  border-radius: var(--re-radius-card);
+  box-shadow: var(--re-shadow);
+}
+.visual-refresh[data-page] .section-heading {
+  gap: 14px;
+  margin-bottom: 24px;
+}
+.visual-refresh[data-page] .section-heading > div {
+  min-width: 0;
+}
+.visual-refresh[data-page] h2 {
+  font-family: var(--re-font-heading);
+  color: var(--re-text);
+  font-size: 20px;
+  line-height: 1.45;
+  letter-spacing: -0.45px;
+  font-weight: 750;
+}
+.visual-refresh[data-page] .section-heading p {
+  color: var(--re-text-muted);
+  font-size: 14px;
+  line-height: 1.7;
+  margin-top: 6px;
+  max-width: 68ch;
+}
+.visual-refresh[data-page] :is(.step-number, .service-icon) {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  color: var(--re-brand);
+  background: var(--re-surface-soft);
+  border-color: var(--re-border);
+  font-size: 14px;
+}
+.visual-refresh[data-page] .count-pill {
+  min-width: 24px;
+  height: 24px;
+  padding: 0 5px;
+  font-size: 12px;
+  color: var(--re-brand);
+  background: var(--re-surface-soft);
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.visual-refresh[data-page]
+  :is(
+    .button,
+    .text-button,
+    .add-service,
+    .history-link,
+    .material-name-button
+  ) {
+  min-height: 44px;
+  font-size: 14px;
+  line-height: 1.5;
+  gap: 8px;
+  border-radius: var(--re-radius-control);
+  white-space: normal;
+}
+.visual-refresh[data-page] .button {
+  padding: 11px 16px;
+  font-weight: 600;
+}
+.visual-refresh[data-page] .button.primary {
+  background: var(--re-brand);
+  color: var(--re-on-brand);
+  border: 1px solid var(--re-brand);
+  box-shadow: none;
+}
+.visual-refresh[data-page] .button.primary:hover:not(:disabled) {
+  background: var(--re-brand-hover);
+  border-color: var(--re-brand-hover);
+}
+.visual-refresh[data-page] .button.secondary {
+  color: var(--re-brand);
+  background: var(--re-surface);
+  border: 1px solid var(--re-control-border);
+}
+.visual-refresh[data-page] .button.secondary:hover:not(:disabled) {
+  background: var(--re-surface-soft);
+}
+.visual-refresh[data-page] .button.ghost,
+.visual-refresh[data-page] .text-button {
+  color: var(--re-brand);
+  background: transparent;
+}
+.visual-refresh[data-page] .button.danger {
+  background: var(--re-danger-soft);
+  color: var(--re-danger);
+  border: 1px solid var(--re-danger);
+}
+.visual-refresh[data-page] .button.danger:hover:not(:disabled) {
+  background: var(--re-surface);
+}
+.visual-refresh[data-page] .icon-button {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  color: var(--re-text-muted);
+  border-radius: 8px;
+}
+.visual-refresh[data-page] .icon-button:hover {
+  background: var(--re-surface-soft);
+  color: var(--re-brand);
+}
+.visual-refresh[data-page] .icon-button.delete:hover {
+  background: var(--re-danger-soft);
+  color: var(--re-danger);
+}
+.visual-refresh[data-page] .field-grid {
+  gap: 22px 20px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.visual-refresh[data-page] .field {
+  min-width: 0;
+  color: var(--re-text);
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 500;
+}
+.visual-refresh[data-page]
+  :is(
+    .field input,
+    .field select,
+    .field textarea,
+    .search-field input,
+    .catalog-controls > select,
+    .aspect-editor-row > input,
+    .data-table input,
+    .material-row select,
+    .quantity input
+  ) {
+  min-height: 48px;
+  height: auto;
+  padding: 12px 14px;
+  max-width: 100%;
+  border: 1px solid var(--re-control-border);
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--re-text);
+  background: var(--re-surface);
+}
+.visual-refresh[data-page] :is(input, textarea)::placeholder {
+  color: var(--re-text-subtle);
+}
+.visual-refresh[data-page] .field small {
+  color: var(--re-text-muted);
+  font-size: 13px;
+  line-height: 1.7;
+  margin-top: 8px;
+}
+.visual-refresh[data-page] .field .input-icon :is(input, select),
+.visual-refresh[data-page] .search-field input {
+  padding-left: 40px;
+}
+.visual-refresh[data-page] .input-icon > svg {
+  color: var(--re-text-muted);
+}
+.visual-refresh[data-page] .input-suffix input {
+  padding-right: 56px;
+}
+.visual-refresh[data-page] .input-suffix > span {
+  color: var(--re-text-muted);
+  font-size: 13px;
+}
+.visual-refresh[data-page] .required {
+  color: var(--re-danger);
+}
+.visual-refresh[data-page] .type-field legend {
+  font-size: 14px;
+  color: var(--re-text);
+}
+.visual-refresh[data-page] .segmented {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.visual-refresh[data-page] .segmented label {
+  min-height: 48px;
+  padding: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--re-text-muted);
+  border-color: var(--re-control-border);
+  border-radius: 8px;
+}
+.visual-refresh[data-page] .segmented label.selected {
+  color: var(--re-brand);
+  background: var(--re-surface-soft);
+  border-color: var(--re-brand);
+}
+.visual-refresh[data-page] .field input[type="checkbox"],
+.visual-refresh[data-page] .field input[type="radio"] {
+  min-height: auto;
+  padding: 0;
+}
+.visual-refresh[data-page] :is(.badge, .trip-stage-summary > span) {
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 5px 9px;
+  border-radius: 6px;
+  font-weight: 500;
+  white-space: normal;
+}
+.visual-refresh[data-page] .badge.neutral {
+  color: var(--re-brand);
+  background: var(--re-surface-soft);
+  border-color: var(--re-border);
+}
+.visual-refresh[data-page] .badge.amber {
+  color: var(--re-warning);
+  background: var(--re-warning-soft);
+}
+.visual-refresh[data-page] .badge.red {
+  color: var(--re-danger);
+  background: var(--re-danger-soft);
+}
+.visual-refresh[data-page] .badge.green {
+  color: var(--re-success);
+  background: var(--re-success-soft);
+}
+.visual-refresh[data-page] :is(.notice, .modal-note, .request-origin) {
+  gap: 12px;
+  padding: 16px 18px;
+  font-size: 14px;
+  line-height: 1.7;
+  align-items: flex-start;
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+.visual-refresh[data-page] .notice {
+  margin-bottom: 24px;
+}
+.visual-refresh[data-page] .notice.error {
+  color: var(--re-danger);
+  background: var(--re-danger-soft);
+  border-color: var(--re-danger);
+}
+.visual-refresh[data-page] .notice.success {
+  color: var(--re-success);
+  background: var(--re-success-soft);
+  border-color: var(--re-control-border);
+}
+.visual-refresh[data-page] .notice .icon-button {
+  margin-block: -8px;
+}
+.visual-refresh[data-page] :is(.modal-note, .request-origin) {
+  color: var(--re-text-muted);
+  background: var(--re-surface-soft);
+  border-color: var(--re-border);
+}
+.visual-refresh[data-page] .request-origin strong {
+  font-size: 14px;
+  color: var(--re-text);
+}
+.visual-refresh[data-page] .request-origin p {
+  font-size: 14px;
+  color: var(--re-text-muted);
+  line-height: 1.7;
+}
+.visual-refresh[data-page] .review-error {
+  font-size: 14px;
+  color: var(--re-danger);
+}
+.visual-refresh[data-page] :is(.request-filters, .order-category-tabs) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-color: var(--re-border);
+  padding-bottom: 20px;
+}
+.visual-refresh[data-page] :is(.request-filters, .order-category-tabs) button {
+  min-height: 44px;
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  border: 1px solid var(--re-border);
+  border-radius: 8px;
+  background: var(--re-background);
+  color: var(--re-text-muted);
+  white-space: normal;
+}
+.visual-refresh[data-page]
+  :is(.request-filters, .order-category-tabs)
+  button.selected {
+  color: var(--re-brand);
+  background: var(--re-surface-soft);
+  border-color: var(--re-control-border);
+  font-weight: 600;
+}
+.visual-refresh[data-page]
+  :is(.request-filters, .order-category-tabs)
+  button:hover {
+  border-color: var(--re-control-border);
+}
+.visual-refresh[data-page] .empty-state {
+  padding: 56px 20px;
+  color: var(--re-brand);
+}
+.visual-refresh[data-page] :is(.empty-state, .services-empty) h3 {
+  font-family: var(--re-font-heading);
+  font-size: 20px;
+  line-height: 1.5;
+  color: var(--re-text);
+}
+.visual-refresh[data-page] :is(.empty-state, .services-empty) p {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--re-text-muted);
+}
+.visual-refresh[data-page] :is(.no-results, .no-materials) {
+  font-size: 14px;
+  color: var(--re-text-muted);
+}
+.visual-refresh[data-page] .services-empty {
+  border-color: var(--re-border);
+  background: var(--re-background);
+  padding: 32px 20px;
+}
+.visual-refresh[data-page] .empty-icon {
+  color: var(--re-brand);
+  background: var(--re-surface-soft);
+}
+
+/* Lists: same record density across catalogs, trips and orders. */
+.visual-refresh[data-page] .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.visual-refresh[data-page] .empty-state-icon {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 20px;
+  border: 1px solid var(--re-border);
+  border-radius: 20px;
+  background: var(--re-surface-soft);
+  color: var(--re-brand);
+}
+.visual-refresh[data-page] .service-title small span {
+  color: var(--re-text-muted);
+}
+.visual-refresh[data-page]
+  :is(
+    .catalog-record,
+    .request-item,
+    .service-card,
+    .order-service-detail,
+    .incident-card,
+    .trip-inspection-detail
+  ) {
+  min-width: 0;
+  border-color: var(--re-border);
+  background: var(--re-surface);
+  border-radius: 10px;
+  padding: 20px;
+}
+.visual-refresh[data-page]
+  :is(
+    .catalog-record-info h3,
+    .request-item h3,
+    .service-title h3,
+    .order-service-detail h3,
+    .incident-card h4
+  ) {
+  color: var(--re-text);
+  font-size: 18px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.visual-refresh[data-page]
+  :is(
+    .catalog-record-info p,
+    .order-service-detail p,
+    .incident-card p,
+    .saved-order p
+  ) {
+  color: var(--re-text-muted);
+  font-size: 14px;
+  line-height: 1.8;
+}
+.visual-refresh[data-page]
+  :is(
+    .catalog-record-info > small,
+    .service-title small,
+    .saved-order small,
+    .request-item-top small,
+    .trip-inspection-detail > small,
+    .incident-card small
+  ) {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--re-text-subtle);
+}
+.visual-refresh[data-page] .catalog-controls {
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.visual-refresh[data-page] .catalog-controls .search-field {
+  max-width: 480px;
+  min-width: 160px;
+}
+.visual-refresh[data-page] .catalog-record-actions {
+  gap: 12px;
+}
+.visual-refresh[data-page] .catalog-metrics {
+  gap: 8px 16px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--re-text-muted);
+}
+.visual-refresh[data-page] .catalog-metrics strong {
+  color: var(--re-text);
+}
+.visual-refresh[data-page] .order-title-button {
+  color: var(--re-brand);
+  min-height: 44px;
+  line-height: 1.6;
+  text-decoration-color: var(--re-control-border);
+}
+.visual-refresh[data-page] .saved-order {
+  font-size: 16px;
+  padding-block: 24px;
+  gap: 16px;
+  border-color: var(--re-border);
+  flex-wrap: wrap;
+}
+.visual-refresh[data-page] .saved-order > div {
+  flex: 1 1 220px;
+}
+.visual-refresh[data-page] .saved-order > strong {
+  font-size: 16px;
+  color: var(--re-text);
+}
+.visual-refresh[data-page] .order-list-actions {
+  gap: 12px;
+  flex-shrink: 0;
+}
+.visual-refresh[data-page]
+  :is(
+    .orders-view,
+    .catalog-management,
+    .trip-case-list,
+    .contextual-service-page,
+    .order-detail,
+    .vehicle-dossier
+  )
+  > .section-heading {
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.visual-refresh[data-page] .orders-view .section-heading p {
+  max-width: 68ch;
+}
+.visual-refresh[data-page] .request-meta {
+  color: var(--re-text-subtle);
+  font-size: 13px;
+  line-height: 1.7;
+  gap: 10px 16px;
+}
+.visual-refresh[data-page] .request-meta > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.visual-refresh[data-page] .request-item-top {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.visual-refresh[data-page] .request-item-bottom {
+  gap: 16px;
+  flex-wrap: wrap;
+  border-color: var(--re-border);
+  padding-top: 16px;
+  margin-top: 20px;
+}
+.visual-refresh[data-page] .request-item-bottom > span {
+  color: var(--re-text-subtle);
+  font-size: 13px;
+}
+.visual-refresh[data-page] .request-description {
+  font-size: 16px;
+  line-height: 1.8;
+  color: var(--re-text-muted);
+}
+.visual-refresh[data-page] .trip-stage-summary > span {
+  color: var(--re-text-muted);
+  border-color: var(--re-border);
+  background: var(--re-background);
+  padding: 10px 12px;
+}
+.visual-refresh[data-page] .trip-stage-summary > span.complete {
+  color: var(--re-success);
+  background: var(--re-success-soft);
+  border-color: var(--re-control-border);
+}
+.visual-refresh[data-page] .trip-result {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--re-text);
+  border-color: var(--re-border);
+  padding-block: 14px;
+}
+
+/* Shared dialog, table and detail language; native dialog/focus behavior stays. */
+.visual-refresh[data-page] .modal {
+  width: 680px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 48px);
+  overflow: auto;
+  padding: 28px;
+  border-radius: 16px;
+  border-color: var(--re-border);
+  color: var(--re-text);
+  background: var(--re-surface);
+}
+.visual-refresh[data-page] .modal-heading {
+  gap: 16px;
+  align-items: flex-start;
+}
+.visual-refresh[data-page] .modal-heading h2 {
+  font-size: 22px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.visual-refresh[data-page] .modal-description {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--re-text-muted);
+  margin: 16px 0 24px;
+}
+.visual-refresh[data-page]
+  :is(.modal, .contextual-service-page, .order-detail, .vehicle-dossier)
+  h3 {
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--re-text);
+  margin: 24px 0 16px;
+}
+.visual-refresh[data-page] .order-service-detail h3 {
+  margin-top: 0;
+}
+.visual-refresh[data-page] .modal > p:not(.modal-description) {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--re-text-muted);
+}
+.visual-refresh[data-page] .modal-actions {
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 28px;
+}
+.visual-refresh[data-page] .preview-details {
+  font-size: 14px;
+  line-height: 1.7;
+  gap: 16px;
+}
+.visual-refresh[data-page] .preview-details > div {
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 16px;
+}
+.visual-refresh[data-page] .preview-details dt {
+  color: var(--re-text-muted);
+}
+.visual-refresh[data-page] .preview-details dd {
+  color: var(--re-text);
+}
+.visual-refresh[data-page]
+  :is(.preview-service, .preview-service p, .preview-total) {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--re-text);
+}
+.visual-refresh[data-page] .table-scroll {
+  border: 1px solid var(--re-border);
+  border-radius: 10px;
+  min-width: 0;
+  overscroll-behavior-x: contain;
+}
+.visual-refresh[data-page] .table-scroll:focus-visible {
+  outline: 3px solid var(--re-focus);
+  outline-offset: 3px;
+}
+.visual-refresh[data-page] .data-table {
+  font-size: 14px;
+  color: var(--re-text);
+}
+.visual-refresh[data-page] .data-table th {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 14px 16px;
+  color: var(--re-text-muted);
+  background: var(--re-surface-soft);
+  border-color: var(--re-border);
+}
+.visual-refresh[data-page] .data-table td {
+  padding: 16px;
+  border-color: var(--re-border);
+}
+.visual-refresh[data-page] .data-table small {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--re-text-muted);
+}
+.visual-refresh[data-page] .data-table tbody tr:hover {
+  background: var(--re-background);
+}
+.visual-refresh[data-page] .history-table {
+  min-width: 1200px;
+}
+.visual-refresh[data-page] .history-table caption {
+  font-size: 14px;
+  color: var(--re-text);
+  padding: 16px;
+}
+.visual-refresh[data-page] :is(.history-details, .history-table-details) {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--re-text-muted);
+  border-color: var(--re-border);
+}
+.visual-refresh[data-page]
+  :is(.history-details, .history-table-details)
+  summary {
+  font-size: 14px;
+  color: var(--re-brand);
+  padding-block: 10px;
+  min-height: 44px;
+}
+.visual-refresh[data-page]
+  :is(.history-details, .history-table-details)
+  :is(p, h3, h4) {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--re-text);
+}
+.visual-refresh[data-page]
+  :is(
+    .history-details small,
+    .activity-list small,
+    .stock-history small,
+    .legacy-note small
+  ) {
+  font-size: 12px;
+  color: var(--re-text-subtle);
+}
+.visual-refresh[data-page]
+  :is(
+    .history-filters,
+    .due-grid > div,
+    .cost-pair,
+    .stock-history,
+    .legacy-note,
+    .entry-total,
+    .context-reading
+  ) {
+  background: var(--re-background);
+  border-color: var(--re-border);
+  border-radius: 10px;
+  padding: 20px;
+  min-width: 0;
+}
+.visual-refresh[data-page]
+  :is(.due-grid > div > span, .cost-pair > span, .entry-total > span) {
+  font-size: 14px;
+  color: var(--re-text-muted);
+}
+.visual-refresh[data-page]
+  :is(.due-grid strong, .cost-pair strong, .entry-total > output) {
+  color: var(--re-text);
+  font-family: var(--re-font-heading);
+  font-size: 22px;
+  line-height: 1.5;
+}
+.visual-refresh[data-page] .due-grid small {
+  font-size: 13px;
+  color: var(--re-text-muted);
+}
+.visual-refresh[data-page] :is(.activity-list > div, .activity-list > article) {
+  padding: 20px;
+  border-color: var(--re-border);
+  border-left-color: var(--re-control-border);
+  background: var(--re-surface);
+  border-radius: 10px;
+}
+.visual-refresh[data-page]
+  :is(
+    .activity-list strong,
+    .activity-list h4,
+    .stock-history,
+    .legacy-note strong
+  ) {
+  font-size: 16px;
+  color: var(--re-text);
+}
+.visual-refresh[data-page]
+  :is(.activity-list p, .stock-history span, .legacy-note p) {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--re-text-muted);
+}
+.visual-refresh[data-page] :is(.pending-text, .activity-list .pending-text) {
+  color: var(--re-warning);
+}
+
+/* Order editor, material quantities and review controls. */
+.visual-refresh[data-page] .section-footnote {
+  color: var(--re-text-muted);
+  font-size: 13px;
+  line-height: 1.8;
+  margin-top: 18px;
+}
+.visual-refresh[data-page] .section-heading > .step-number + div {
+  flex: 1;
+}
+.visual-refresh[data-page] .service-title > div {
+  min-width: 0;
+  flex: 1;
+}
+.visual-refresh[data-page] .service-classification > div {
+  min-height: 48px;
+  color: var(--re-brand);
+  background: var(--re-surface-soft);
+  border-color: var(--re-border);
+  border-radius: 8px;
+  padding: 12px;
+}
+.visual-refresh[data-page] .service-classification strong {
+  font-size: 14px;
+}
+.visual-refresh[data-page] .form-layout {
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 24px;
+}
+.visual-refresh[data-page] .form-sections {
+  gap: 24px;
+}
+.visual-refresh[data-page] .order-summary {
+  top: 104px;
+  gap: 20px;
+}
+.visual-refresh[data-page] .form-toolbar {
+  font-size: 12px;
+  line-height: 1.7;
+  gap: 16px;
+  flex-wrap: wrap;
+  color: var(--re-text-muted);
+}
+.visual-refresh[data-page] .form-toolbar > span {
+  flex-wrap: wrap;
+}
+.visual-refresh[data-page] .muted {
+  color: var(--re-text-muted);
+}
+.visual-refresh[data-page] .required-note {
+  font-size: 12px;
+  color: var(--re-text-muted);
+  white-space: normal;
+}
+.visual-refresh[data-page]
+  :is(
+    .summary-heading .eyebrow,
+    .service-title small,
+    .cost-summary small,
+    .progress-label,
+    .progress-label strong,
+    .preparation-list,
+    .summary-details dt
+  ) {
+  font-size: 12px;
+  color: var(--re-text-muted);
+  line-height: 1.7;
+}
+.visual-refresh[data-page]
+  :is(
+    .summary-details dd,
+    .bus-preview p,
+    .bus-preview small,
+    .cost-summary > span,
+    .summary-disclaimer,
+    .help-card p,
+    .help-card small
+  ) {
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--re-text-muted);
+}
+.visual-refresh[data-page]
+  :is(.bus-preview strong, .help-card strong, .safety-note strong) {
+  font-size: 14px;
+  color: var(--re-text);
+}
+.visual-refresh[data-page] .summary-details > div {
+  flex-wrap: wrap;
+}
+.visual-refresh[data-page] .cost-summary strong {
+  font-size: 28px;
+  color: var(--re-text);
+}
+.visual-refresh[data-page] .help-card {
+  padding: 20px;
+  border-color: var(--re-border);
+  border-radius: 10px;
+  background: var(--re-surface-soft);
+}
+.visual-refresh[data-page] :is(.help-icon, .preparation-list .done) {
+  color: var(--re-success);
+}
+.visual-refresh[data-page] .safety-note p {
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--re-text-muted);
+}
+.visual-refresh[data-page] .form-footer {
+  border-color: var(--re-border);
+  gap: 16px;
+}
+.visual-refresh[data-page] .form-footer > div {
+  flex-wrap: wrap;
+}
+.visual-refresh[data-page] .materials-heading {
+  gap: 16px;
+  flex-wrap: wrap;
+  border-color: var(--re-border);
+}
+.visual-refresh[data-page] .materials-heading > span {
+  font-size: 14px;
+  color: var(--re-text-muted);
+}
+.visual-refresh[data-page] .material-row {
+  grid-template-columns: minmax(0, 1fr) 96px 90px 44px;
+  gap: 12px;
+}
+.visual-refresh[data-page] .material-name-button {
+  background: var(--re-surface);
+  border-color: var(--re-control-border);
+  color: var(--re-brand);
+  padding: 12px;
+}
+.visual-refresh[data-page] .material-name-button small {
+  color: var(--re-text-muted);
+  font-size: 12px;
+}
+.visual-refresh[data-page] :is(.material-cost, .quantity) {
+  font-size: 13px;
+  color: var(--re-text-muted);
+}
+.visual-refresh[data-page] .quantity input {
+  width: 68px;
+  padding-inline: 6px;
+}
+.visual-refresh[data-page] .add-service {
+  color: var(--re-brand);
+  border-color: var(--re-control-border);
+  background: var(--re-surface-soft);
+}
+.visual-refresh[data-page] .definition-material-row {
+  grid-template-columns: minmax(0, 1fr) 180px 44px;
+  gap: 16px;
+}
+.visual-refresh[data-page] .quantity-stepper {
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  min-height: 48px;
+  border-color: var(--re-control-border);
+  border-radius: 8px;
+}
+.visual-refresh[data-page] .quantity-stepper > button {
+  min-height: 48px;
+  color: var(--re-brand);
+  background: var(--re-surface-soft);
+}
+.visual-refresh[data-page] .field .quantity-stepper > input {
+  padding: 8px 2px;
+  min-height: 48px;
+  border: 0;
+  border-radius: 0;
+  font-size: 16px;
+}
+.visual-refresh[data-page]
+  :is(
+    .segmented label:focus-within,
+    .review-answer label:focus-within,
+    .quantity-stepper:focus-within
+  ) {
+  outline: 3px solid var(--re-focus);
+  outline-offset: 3px;
+}
+.visual-refresh[data-page] .aspect-editor-head,
+.visual-refresh[data-page] .aspect-editor-row {
+  grid-template-columns: minmax(0, 1fr) 38px 48px 44px;
+}
+.visual-refresh[data-page] .aspect-editor-head {
+  font-size: 12px;
+  color: var(--re-text-muted);
+}
+.visual-refresh[data-page]
+  :is(
+    .compatibility-list label,
+    .completion-services > div > label:first-child,
+    .confirmation-check
+  ) {
+  font-size: 14px;
+  line-height: 1.7;
+  min-height: 44px;
+  color: var(--re-text);
+}
+.visual-refresh[data-page] input:is([type="checkbox"], [type="radio"]) {
+  accent-color: var(--re-brand);
+}
+.visual-refresh[data-page] .review-answer {
+  border-color: var(--re-border);
+  padding: 16px;
+  border-radius: 10px;
+}
+.visual-refresh[data-page] .review-answer legend {
+  font-size: 16px;
+  color: var(--re-text);
+}
+.visual-refresh[data-page] .review-answer > div {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.visual-refresh[data-page] .review-answer label {
+  font-size: 14px;
+  min-height: 44px;
+  color: var(--re-text-muted);
+}
+.visual-refresh[data-page] .review-answer label.good {
+  color: var(--re-success);
+  background: var(--re-success-soft);
+}
+.visual-refresh[data-page] .review-answer label.fault {
+  color: var(--re-danger);
+  background: var(--re-danger-soft);
+}
+.visual-refresh[data-page] .review-answer > small {
+  font-size: 13px;
+  color: var(--re-text-muted);
+}
+.visual-refresh[data-page] .catalog-list button {
+  border-color: var(--re-border);
+  border-radius: 10px;
+  color: var(--re-text);
+  padding: 16px;
+}
+.visual-refresh[data-page] :is(.catalog-list strong, .picker-product strong) {
+  font-size: 16px;
+  color: var(--re-text);
+}
+.visual-refresh[data-page]
+  :is(.catalog-list small, .picker-product small, .picker-cost small) {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--re-text-muted);
+}
+.visual-refresh[data-page]
+  :is(.picker-status, .picker-pagination > span, .picker-cost) {
+  font-size: 13px;
+  color: var(--re-text-muted);
+}
+.visual-refresh[data-page] .warehouse-picker-row {
+  border-color: var(--re-border);
+  border-radius: 10px;
+  background: var(--re-surface);
+  padding: 16px;
+}
+.visual-refresh[data-page] .warehouse-picker-row.selected {
+  border-color: var(--re-control-border);
+  background: var(--re-surface-soft);
+}
+.visual-refresh[data-page] .picker-pagination {
+  flex-wrap: wrap;
+  border-color: var(--re-border);
+}
+.visual-refresh[data-page] .page-bottom {
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--re-text-muted);
+  margin-top: 32px;
+  padding-top: 20px;
+  border-color: var(--re-border);
+}
+.visual-refresh[data-page] .page-bottom > span:first-child {
+  font-size: 10px;
+  color: var(--re-text-muted);
+}
+
+@media (max-width: 1200px) {
+  .visual-refresh[data-page] .form-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .visual-refresh[data-page] .order-summary {
+    position: static;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+@media (max-width: 1100px) and (min-width: 769px) {
+  .visual-refresh[data-page] #main-content {
+    padding: 28px 24px 24px;
+  }
+  .visual-refresh[data-page] .due-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 768px) {
+  .visual-refresh[data-page] #main-content {
+    padding: 28px 16px 20px;
+  }
+  .visual-refresh[data-page] .page-heading {
+    margin-bottom: 24px;
+  }
+  .visual-refresh[data-page] h1 {
+    font-size: clamp(27px, 6vw, 32px);
+    letter-spacing: -0.8px;
+  }
+  .visual-refresh[data-page] .heading-icon {
+    display: none;
+  }
+  .visual-refresh[data-page] .page-heading p {
+    margin-top: 0;
+  }
+  .visual-refresh[data-page] .demo-banner {
+    padding: 14px;
+    margin-bottom: 24px;
+  }
+  .visual-refresh[data-page] .card {
+    padding: 20px;
+    border-radius: 12px;
+  }
+  .visual-refresh[data-page] h2 {
+    font-size: 19px;
+  }
+  .visual-refresh[data-page] .section-heading {
+    flex-wrap: wrap;
+  }
+  .visual-refresh[data-page] .section-heading p {
+    max-width: none;
+  }
+  .visual-refresh[data-page] .section-heading > .button {
+    width: 100%;
+  }
+  .visual-refresh[data-page]
+    :is(.orders-view, .catalog-management, .trip-case-list)
+    > .section-heading
+    > div:first-child {
+    flex-basis: 100%;
+  }
+  .visual-refresh[data-page] .field-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 22px;
+  }
+  .visual-refresh[data-page] .field.full {
+    grid-column: 1 / -1;
+  }
+  .visual-refresh[data-page] .modal {
+    padding: 20px;
+    max-width: calc(100vw - 24px);
+    max-height: calc(100dvh - 32px);
+  }
+  .visual-refresh[data-page] .modal-heading h2 {
+    font-size: 20px;
+  }
+  .visual-refresh[data-page] .modal-actions > .button {
+    flex: 1 1 130px;
+  }
+  .visual-refresh[data-page]
+    :is(.request-filters, .order-category-tabs)
+    button {
+    flex: 1 1 140px;
+    justify-content: space-between;
+  }
+  .visual-refresh[data-page]
+    :is(.catalog-record, .request-item, .service-card, .order-service-detail) {
+    padding: 18px;
+  }
+  .visual-refresh[data-page] .catalog-record {
+    align-items: flex-start;
+  }
+  .visual-refresh[data-page] .catalog-record-info {
+    flex-basis: calc(100% - 56px);
+  }
+  .visual-refresh[data-page] .catalog-record-actions {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .visual-refresh[data-page] .catalog-record > .badge {
+    margin-left: 0;
+  }
+  .visual-refresh[data-page] .catalog-controls .search-field {
+    max-width: none;
+    width: 100%;
+    flex-basis: 100%;
+  }
+  .visual-refresh[data-page] .catalog-controls > select {
+    width: 100%;
+  }
+  .visual-refresh[data-page] .order-list-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .visual-refresh[data-page] .order-list-actions > .button {
+    flex: 1 1 140px;
+  }
+  .visual-refresh[data-page] .saved-order > div {
+    flex-basis: calc(100% - 56px);
+  }
+  .visual-refresh[data-page] .saved-order > .badge {
+    margin-left: 0;
+  }
+  .visual-refresh[data-page] .request-item-bottom > .button {
+    width: 100%;
+  }
+  .visual-refresh[data-page] .empty-state {
+    padding: 36px 4px;
+  }
+  .visual-refresh[data-page] .preview-details > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .visual-refresh[data-page] .history-filters {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 16px;
+  }
+  .visual-refresh[data-page] .due-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .visual-refresh[data-page] .order-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .visual-refresh[data-page] .form-footer > div {
+    width: 100%;
+  }
+  .visual-refresh[data-page] .form-footer .button {
+    flex: 1 1 130px;
+  }
+  .visual-refresh[data-page] .material-row {
+    grid-template-columns: minmax(0, 1fr) 44px;
+  }
+  .visual-refresh[data-page] .material-row > .material-name-button {
+    grid-column: 1 / -1;
+  }
+  .visual-refresh[data-page] .material-row > .delete {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .visual-refresh[data-page] .material-row .quantity {
+    grid-column: 1;
+  }
+  .visual-refresh[data-page] .material-row .material-cost {
+    display: block;
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+  .visual-refresh[data-page] .definition-material-row {
+    grid-template-columns: minmax(0, 1fr) 44px;
+    gap: 12px;
+    padding: 16px;
+  }
+  .visual-refresh[data-page] .material-definition-article {
+    grid-column: 1 / -1;
+  }
+  .visual-refresh[data-page] .material-definition-quantity {
+    grid-column: 1;
+    max-width: 200px;
+  }
+  .visual-refresh[data-page] .definition-material-row > .icon-button {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .visual-refresh[data-page] .aspect-editor-head,
+  .visual-refresh[data-page] .aspect-editor-row {
+    grid-template-columns: minmax(0, 1fr) 28px 38px 44px;
+    gap: 6px;
+  }
+  .visual-refresh[data-page] .warehouse-picker-row {
+    flex-wrap: wrap;
+  }
+  .visual-refresh[data-page] .picker-cost {
+    max-width: none;
+    text-align: left;
+    flex-basis: 100%;
+  }
+}

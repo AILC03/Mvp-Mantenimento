@@ -1,0 +1,186 @@
+/* Acceso: misma identidad y tokens que el inicio operativo. */
+.login-page {
+  background: var(--re-background);
+  color: var(--re-text);
+  font-size: 16px;
+  min-height: 100dvh;
+}
+.login-page :is(button, a, input):focus-visible,
+.login-page .login-error:focus {
+  outline: 3px solid var(--re-focus);
+  outline-offset: 3px;
+}
+.login-page .login-story {
+  background: var(--re-sidebar);
+  color: var(--re-sidebar-text);
+}
+.login-page .login-story .brand {
+  min-height: 44px;
+}
+.login-page .login-story :is(a, button):focus-visible {
+  outline-color: var(--re-accent);
+}
+.login-page .login-story .brand small,
+.login-page .login-story-bottom {
+  color: var(--re-sidebar-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.login-page .login-story-content > p {
+  color: var(--re-sidebar-text);
+  font-size: 16px;
+  line-height: 1.8;
+}
+.login-page .login-story h1 {
+  font-family: var(--re-font-heading);
+  font-size: clamp(28px, 3vw, 42px);
+  line-height: 1.35;
+  text-wrap: balance;
+}
+.login-page .login-card {
+  max-width: 420px;
+  min-width: 0;
+}
+.login-page .login-key {
+  color: var(--re-brand);
+  background: var(--re-surface-soft);
+  border-color: var(--re-border);
+}
+.login-page .login-card .eyebrow {
+  color: var(--re-text-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.login-page .login-card h2 {
+  font-family: var(--re-font-heading);
+  font-size: 32px;
+  line-height: 1.3;
+  color: var(--re-text);
+}
+.login-page .login-description {
+  color: var(--re-text-muted);
+  font-size: 16px;
+  line-height: 1.7;
+  margin-bottom: 28px;
+}
+.login-page .field {
+  color: var(--re-text);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.login-page .field input {
+  font-size: 16px;
+  min-height: 52px;
+  color: var(--re-text);
+  background: var(--re-surface);
+  border-color: var(--re-control-border);
+  border-radius: var(--re-radius-control);
+}
+.login-page .field input::placeholder {
+  color: var(--re-text-subtle);
+}
+.login-page .input-icon > svg {
+  color: var(--re-text-muted);
+}
+.login-page .field small {
+  color: var(--re-text-muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.login-page .field small.login-field-error {
+  color: var(--re-danger);
+}
+.login-page .field input[aria-invalid="true"] {
+  border-color: var(--re-danger);
+}
+.login-page .password-input > input {
+  padding-right: 60px;
+}
+.login-page .field .input-icon > input {
+  padding-left: 40px;
+}
+.login-page .password-input > .icon-button {
+  width: 44px;
+  height: 44px;
+  right: 4px;
+  color: var(--re-brand);
+}
+.login-page .login-submit {
+  min-height: 48px;
+  font-size: 16px;
+  background: var(--re-brand);
+  color: var(--re-on-brand);
+  border-color: var(--re-brand);
+  border-radius: var(--re-radius-control);
+}
+.login-page .login-submit:hover:not(:disabled) {
+  background: var(--re-brand-hover);
+}
+.login-page .login-error {
+  margin: 0 0 24px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--re-danger);
+  background: var(--re-danger-soft);
+  border-color: var(--re-danger);
+  overflow-wrap: anywhere;
+}
+.login-page .login-error p {
+  margin: 8px 0;
+}
+.login-page .login-error ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+.login-page .login-error a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.login-page .login-security {
+  color: var(--re-brand);
+}
+.login-page .login-security p,
+.login-page .login-mvp-note,
+.login-page .login-footer {
+  color: var(--re-text-muted);
+  font-size: 13px;
+  line-height: 1.8;
+}
+.login-page .login-mvp-note {
+  border-color: var(--re-border);
+  align-items: flex-start;
+}
+.login-page .login-mvp-note .tiny-dot {
+  flex-shrink: 0;
+  margin-top: 8px;
+}
+@media (max-width: 768px) {
+  .login-page {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .login-page .login-story {
+    padding: 24px;
+  }
+  .login-page .login-story h1 {
+    font-size: 28px;
+    letter-spacing: -0.8px;
+  }
+  .login-page .login-story .brand small {
+    font-size: 10px;
+  }
+  .login-page .login-main {
+    padding: 32px 24px 24px;
+    min-width: 0;
+  }
+  .login-page .login-card h2 {
+    font-size: 28px;
+  }
+  .login-page .login-description {
+    font-size: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-page :is(button, a, input) {
+    transition: none;
+  }
+}
