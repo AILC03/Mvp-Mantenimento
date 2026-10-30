@@ -36,7 +36,7 @@ export function vehicleInput(body: unknown, updating = false) {
   if (vin && !/^[A-HJ-NPR-Z0-9]{17}$/.test(vin))
     throw new BadRequestException('El VIN debe tener 17 caracteres válidos.');
   if (input.type !== 'bus' && input.type !== 'truck')
-    throw new BadRequestException('Selecciona autobús o camión.');
+    throw new BadRequestException('Selecciona Autobús o Sprinter.');
   if (
     input.year !== null &&
     (typeof input.year !== 'number' ||

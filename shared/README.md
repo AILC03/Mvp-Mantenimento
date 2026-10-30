@@ -1,5 +1,7 @@
 # Dominio compartido Real Ejecutivo
 
+**Unidades (30/10/2026):** `bus` significa Autobús y `truck` significa Sprinter de pasajeros. Se conservan las claves históricas y los IDs. `vehicleTypeLabel` centraliza etiquetas; todas las reglas, incluido el caso de viaje abierto único por unidad, aplican a ambas categorías. No excluir `truck` como si fuera carga.
+
 Reglas y tipos propios, sin React, Prisma ni acceso al navegador. Frontend consume `src/` mediante Vite; backend consume el paquete local `@real-ejecutivo/domain`, compilado en CommonJS con declaraciones.
 
 ```powershell

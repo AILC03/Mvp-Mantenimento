@@ -3,6 +3,7 @@ import { validServiceQuantity } from "./quantities";
 export type Vehicle = {
   id: string;
   fleetNumber: string;
+  // Claves históricas: bus = Autobús; truck = Sprinter de pasajeros (no carga).
   type: "bus" | "truck";
   brand: string;
   model: string;
@@ -12,6 +13,9 @@ export type Vehicle = {
   odometer: number;
   note: string;
 };
+export const vehicleTypeLabel = (type: Vehicle["type"]) =>
+  type === "truck" ? "Sprinter" : "Autobús";
+
 export type Product = {
   id: string;
   sku: string;

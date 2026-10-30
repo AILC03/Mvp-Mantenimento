@@ -1,3 +1,55 @@
+.unit-records {
+  padding: 16px 0;
+  border-block: 1px solid var(--re-border);
+  margin-block: 16px;
+  overflow-wrap: anywhere;
+}
+.unit-records p {
+  margin-block: 12px;
+}
+.unit-records label {
+  line-height: 1.6;
+}
+.circulation-summary {
+  margin-bottom: 20px;
+  overflow-wrap: anywhere;
+}
+.circulation-photo {
+  overflow-wrap: anywhere;
+  color: var(--re-text);
+}
+.circulation-photo section {
+  margin-block: 16px;
+}
+.circulation-photo .circulation-row {
+  padding-block: 8px;
+  font-size: 14px;
+}
+.circulation-summary > section {
+  padding-block: 12px;
+}
+.circulation-row {
+  display: grid;
+  grid-template-columns: 100px 1fr 1fr;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--re-border);
+  font-size: 15px;
+}
+@media (max-width: 600px) {
+  .circulation-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+@media print {
+  .requisition-sheet article {
+    break-inside: avoid;
+  }
+  .requisition-sheet {
+    overflow-wrap: anywhere;
+  }
+}
 .server-tools {
   position: fixed;
   right: 24px;

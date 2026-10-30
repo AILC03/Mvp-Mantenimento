@@ -8,6 +8,7 @@ import { fleetRecords, recordPeriodicReview, remainingDays } from "../fleet";
 import { dateToday } from "../orders";
 import type { CommitWorkbench } from "./OrdersView";
 import { Modal } from "./Modal";
+import { vehicleTypeLabel } from "../data";
 
 export function PeriodicReviews({
   user,
@@ -47,7 +48,8 @@ export function PeriodicReviews({
         >
           {catalogs.vehicles.map((vehicle) => (
             <option value={vehicle.id} key={vehicle.id}>
-              {vehicle.fleetNumber} · {vehicle.model}
+              {vehicle.fleetNumber} · {vehicleTypeLabel(vehicle.type)} ·{" "}
+              {vehicle.model}
             </option>
           ))}
         </select>

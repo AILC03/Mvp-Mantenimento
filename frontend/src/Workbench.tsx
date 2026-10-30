@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import {
   currency,
+  vehicleTypeLabel,
   emptyForm,
   isOrderForm,
   maintenanceLabel,
@@ -74,6 +75,7 @@ import { ApiError, roleLabels, type AuthUser } from "./auth";
 import { TripReviews } from "./components/TripReviews";
 import { OrdersView, type CommitWorkbench } from "./components/OrdersView";
 import { VehicleHistory } from "./components/VehicleHistory";
+import { CirculationSummary } from "./components/UnitRecords";
 import { PeriodicReviews } from "./components/PeriodicReviews";
 import { availableStock } from "./orders";
 import { MaterialPicker } from "./components/MaterialPicker";
@@ -86,7 +88,7 @@ const catalogPages = {
       "Da de alta artículos, registra entradas y conserva sus costos históricos.",
   },
   vehicles: {
-    title: "Autobuses y camiones",
+    title: "Unidades",
     description:
       "Organiza la flota con una ficha independiente para cada unidad.",
   },
@@ -945,18 +947,23 @@ export default function Workbench({
               }
             />
           ) : catalogSection && canSeeCatalog(catalogSection) ? (
-            <CatalogManager
-              key={catalogSection}
-              section={catalogSection}
-              data={catalogData}
-              onCommit={commitCatalogs}
-              canEdit={canEditCatalog(catalogSection)}
-              stockBalances={stockBalances}
-              onOpenVehicle={(vehicle) => {
-                setVehicleId(vehicle.id);
-                setView("vehicle-history");
-              }}
-            />
+            <>
+              {user.role === "ADMIN" && catalogSection === "vehicles" && (
+                <CirculationSummary vehicles={buses} data={workbench} />
+              )}
+              <CatalogManager
+                key={catalogSection}
+                section={catalogSection}
+                data={catalogData}
+                onCommit={commitCatalogs}
+                canEdit={canEditCatalog(catalogSection)}
+                stockBalances={stockBalances}
+                onOpenVehicle={(vehicle) => {
+                  setVehicleId(vehicle.id);
+                  setView("vehicle-history");
+                }}
+              />
+            </>
           ) : view === "requests" ? (
             <>
               {errors.length > 0 && (
@@ -1062,7 +1069,7 @@ export default function Workbench({
                     </div>
                     <div className="field-grid">
                       <label className="field full">
-                        Unidad (autobús o camión){" "}
+                        Unidad (Autobús o Sprinter){" "}
                         <span className="required">*</span>
                         <div className="input-icon">
                           <BusFront size={18} />
@@ -1088,8 +1095,8 @@ export default function Workbench({
                             {buses.map((item) => (
                               <option key={item.id} value={item.id}>
                                 {item.fleetNumber} ·{" "}
-                                {item.type === "truck" ? "Camión" : "Autobús"} ·{" "}
-                                {item.model} {item.year ?? ""}
+                                {vehicleTypeLabel(item.type)} · {item.model}{" "}
+                                {item.year ?? ""}
                               </option>
                             ))}
                           </select>
@@ -1487,8 +1494,8 @@ export default function Workbench({
                         Crear una orden no autoriza la circulación.
                       </strong>
                       <p>
-                        La liberación del trabajo y la disponibilidad técnica
-                        del autobús son decisiones independientes.
+                        La liberación del trabajo y la disponibilidad técnica de
+                        la unidad son decisiones independientes.
                       </p>
                     </div>
                   </div>
@@ -1513,7 +1520,7 @@ export default function Workbench({
                         <p>
                           {bus
                             ? `${bus.model || "Modelo sin especificar"}${bus.year ? ` · ${bus.year}` : ""}`
-                            : "Selecciona un autobús para comenzar"}
+                            : "Selecciona una unidad para comenzar"}
                         </p>
                         {bus && <small>{bus.plate} · Datos ficticios</small>}
                       </div>

@@ -4,6 +4,10 @@ Proyecto independiente con NestJS 11, TypeScript y npm. Consume las reglas propi
 
 ## Operación integrada
 
+**Clasificación vigente del 30/10:** Autobús y Sprinter de pasajeros comparten todos los flujos. Se conservan `bus`/`BUS` y `truck`/`TRUCK`; estos últimos significan Sprinter, no carga. La regla compartida de viaje ya no excluye `truck`. Sin cambios de IDs ni migraciones de valores; ver [compatibilidad y pruebas](../docs/proyecto/unidades-sprinter-2026-10-30.md).
+
+**29/10/2026:** añadidos comandos `external.record`, `circulation.decide` y consulta mínima `GET /api/operations/trips/:id/incidents`. Campos opcionales del mismo JSONB, sin migraciones ni segunda fuente relacional. Admin/mecánico guardan externos y circulación; chofer solo consulta incidencias de un caso propio. Cierre validado contra apertura de esa orden, no contra lecturas posteriores. [Contrato, permisos y verificación](../docs/proyecto/entrega-alcance-mvp-2026-10-28.md).
+
 Disponibles `/api/operations`, `/api/operations/commands` y `/api/operations/import`. Todos los módulos actuales y borradores usan PostgreSQL, con reglas compartidas, autorización, transacción, revisión e idempotencia. Persistencia del MVP en agregado JSONB versionado, borradores privados y auditoría; normalización por entidad pendiente. Ver [arquitectura, migración y límites](../docs/proyecto/backend-operacion-etapa-02.md). GET `/api/vehicles` usa la misma fuente; escrituras antiguas devuelven 410 para evitar divergencias.
 
 ## Requisitos
@@ -63,7 +67,7 @@ test/      Pruebas HTTP de integración
 - Normalizar e indexar entidades del agregado JSONB; paginación y consultas del servidor.
 - Revisar con el usuario la migración de datos antiguos y conciliar conflictos sin reemplazos automáticos.
 - Extender cobertura de concurrencia y rendimiento con carga real; ya se prueba el circuito integrado contra una BD PostgreSQL temporal propia.
-- Externos/carretera, valoración contable y evidencias privadas.
+- Externos/carretera básicos ya implementados; reportes acumulados, valoración contable y evidencias privadas fuera de la entrega actual.
 - Configuración validada, evidencias privadas y controles de producción.
 
 No está lista para producción. Las reglas operativas compartidas están en `../shared/src` y la documentación en `../docs/`. `UNLICENSED` en el manifiesto evita conceder una licencia pública por defecto; los derechos contractuales con el cliente siguen pendientes.

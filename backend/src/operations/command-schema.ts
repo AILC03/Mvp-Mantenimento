@@ -256,6 +256,30 @@ const commandSchema = z.discriminatedUnion('type', [
     .object({ type: z.literal('trip.close'), id, notes: z.string().max(2000) })
     .strict(),
   z.object({ type: z.literal('draft.save'), form: formSchema }).strict(),
+  z
+    .object({
+      type: z.literal('external.record'),
+      vehicleId: id,
+      input: z
+        .object({
+          kind: z.enum(['external', 'roadside']),
+          date: z.string().max(10),
+          description: text,
+          provider: short,
+          materialsCost: amount.multipleOf(0.01),
+          laborCost: amount.multipleOf(0.01),
+          notes: text,
+        })
+        .strict(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('circulation.decide'),
+      vehicleId: id,
+      status: z.enum(['authorized', 'unauthorized', 'unevaluated']),
+    })
+    .strict(),
 ]);
 export const envelopeSchema = z
   .object({

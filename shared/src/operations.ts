@@ -1,5 +1,11 @@
 import type { AuthUser } from "./auth";
 import {
+  addExternalService,
+  decideCirculation,
+  type ExternalServiceInput,
+  type CirculationStatus,
+} from "./unit-records";
+import {
   defaultCatalogs,
   saveVehicle,
   saveProduct,
@@ -43,6 +49,8 @@ export type OperationsState = {
   trips: TripCase[];
 };
 export type Command =
+  | { type: "external.record"; vehicleId: string; input: ExternalServiceInput }
+  | { type: "circulation.decide"; vehicleId: string; status: CirculationStatus }
   | {
       type: "vehicle.save";
       input: Parameters<typeof saveVehicle>[1];
@@ -160,6 +168,8 @@ export function permitted(user: AuthUser, type: Command["type"]): boolean {
       "incident.resolve",
       "trip.close",
       "draft.save",
+      "external.record",
+      "circulation.decide",
     ].includes(type);
   return false;
 }
@@ -196,6 +206,24 @@ export function applyCommand(
     }
   };
   switch (command.type) {
+    case "external.record":
+      vehicle(command.vehicleId);
+      next.workbench = addExternalService(
+        next.workbench,
+        user,
+        command.vehicleId,
+        command.input,
+      );
+      break;
+    case "circulation.decide":
+      vehicle(command.vehicleId);
+      next.workbench = decideCirculation(
+        next.workbench,
+        user,
+        command.vehicleId,
+        command.status,
+      );
+      break;
     case "vehicle.save":
       next.catalogs = saveVehicle(c, command.input, command.id);
       identify(next.catalogs.vehicles, command.id, command.clientId);

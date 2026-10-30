@@ -143,10 +143,8 @@ export function startTripCase(
 ): TripCase[] {
   if (user.role !== "DRIVER")
     throw new Error("Solo el chofer inicia un caso de revisión de su viaje.");
-  const bus = vehicles.find(
-    (vehicle) => vehicle.id === input.busId && vehicle.type === "bus",
-  );
-  if (!bus) throw new Error("Selecciona un autobús para el viaje.");
+  const bus = vehicles.find((vehicle) => vehicle.id === input.busId);
+  if (!bus) throw new Error("Selecciona una unidad para el viaje.");
   if (
     !validDate(input.departureDate) ||
     !validDate(input.returnDate) ||
@@ -157,7 +155,7 @@ export function startTripCase(
     );
   if (cases.some((item) => item.busId === bus.id && !item.closedAt))
     throw new Error(
-      "Este autobús ya tiene un caso abierto. Debe cerrarse antes de iniciar otro.",
+      "Esta unidad ya tiene un caso abierto. Debe cerrarse antes de iniciar otro.",
     );
   const id = crypto.randomUUID();
   const item: TripCase = {

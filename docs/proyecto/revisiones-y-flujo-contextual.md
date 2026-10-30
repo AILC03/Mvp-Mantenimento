@@ -4,10 +4,14 @@
 
 ## Revisiones: caso pre y post trip
 
+**Ampliación verificada el 29/10:** botón **Ver incidencias de la unidad** durante captura, activas inicialmente y resueltas a petición. Conserva respuestas/notas, sin deduplicar ni añadir respuestas. Consulta específica autorizada y mínima; no se entrega al chofer el expediente completo. Ver [entrega](entrega-alcance-mvp-2026-10-28.md).
+
+**Ajuste posterior del 29/10:** la consulta se abre en ventana emergente independiente, no desplegada dentro del formulario. Cerrar la consulta no cierra la revisión ni pierde sus respuestas. Al iniciar un caso se actualiza el catálogo autorizado desde la API, con carga/error/reintento y estado vacío; no es necesario salir y volver a iniciar sesión para ver autobuses recién registrados. El reintento conserva las fechas.
+
 - Nueva opción lateral **Revisiones**, distinta de **Tipos de revisión**.
 - Siguiendo el flujo previamente definido, el chofer inicia el caso y el mismo chofer captura ambas etapas. Mecánico principal y administrador consultan los casos y realizan su revisión/cierre. Almacén no accede a este flujo.
-- Alta del caso: autobús, fecha de ida y fecha de regreso. Regreso igual o posterior a ida. Los camiones siguen siendo unidades distintas y no aparecen como autobuses en este formulario.
-- Se conserva la regla previa de un único caso abierto por autobús, incluso si todavía espera cierre del mecánico. Evaluar su impacto en salidas consecutivas durante la prueba operativa.
+- Alta del caso: unidad (Autobús o Sprinter), fecha de ida y fecha de regreso. Regreso igual o posterior a ida. La [aclaración del 30/10](unidades-sprinter-2026-10-30.md) sustituye la exclusión anterior: `truck` representa Sprinter de pasajeros y también puede viajar.
+- Se conserva un único caso abierto por unidad, incluso si todavía espera cierre del mecánico. Evaluar su impacto en salidas consecutivas durante la prueba operativa.
 - Primero se realiza pre trip; después post trip. Cada aspecto exige una respuesta: **Bien** o **Con falla**, excluyentes y sin valores preseleccionados.
 - Las capturas enviadas no se editan ni se reemplazan. Se conservan autor, fecha y observaciones.
 - El caso se envía automáticamente a **Pendiente de revisión** únicamente cuando ambas capturas se guardan correctamente. Una sola captura no basta.
@@ -64,7 +68,7 @@ La búsqueda y paginación son locales. La búsqueda paginada en API se implemen
 
 ## Persistencia y límites
 
-Login y sesiones siguen usando backend/PostgreSQL. Los casos de viaje nuevos se guardan en `real-ejecutivo.demo.trip-cases.v1`; solicitudes, órdenes y catálogos mantienen sus claves anteriores. No hay eliminación ni reasignación automática de datos anteriores.
+Login, sesiones y casos de viaje usan backend/PostgreSQL. `real-ejecutivo.demo.trip-cases.v1` es una clave histórica consultada solo por migración explícita; no es almacenamiento activo. No hay eliminación ni reasignación automática de datos anteriores.
 
 Los registros operativos actuales usan comandos autorizados, transacciones PostgreSQL y control de revisión. Se comparten entre dispositivos mediante recarga; no hay actualización en vivo. Las copias antiguas requieren respaldo/importación explícitos y no se usan para operar. No ingresar información sensible hasta completar la preparación de producción.
 

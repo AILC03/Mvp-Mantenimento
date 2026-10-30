@@ -11,7 +11,7 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
-import { type SavedOrder, type Vehicle } from "../data";
+import { vehicleTypeLabel, type SavedOrder, type Vehicle } from "../data";
 import { reviewFrequency, type ReviewType } from "../catalogs";
 import {
   emptyRequest,
@@ -149,8 +149,7 @@ export function ServiceRequests({
                   <option value="">Selecciona la unidad</option>
                   {buses.map((bus) => (
                     <option value={bus.id} key={bus.id}>
-                      {bus.fleetNumber} ·{" "}
-                      {bus.type === "truck" ? "Camión" : "Autobús"} ·{" "}
+                      {bus.fleetNumber} · {vehicleTypeLabel(bus.type)} ·{" "}
                       {bus.model}
                     </option>
                   ))}

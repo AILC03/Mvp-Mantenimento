@@ -39,11 +39,27 @@ test("opens a bus case with valid dates and prevents a second open case", () => 
       data.vehicles,
     ),
   ).toThrow("regreso");
+  const sprinter = { ...data.vehicles[0], id: "TRUCK", type: "truck" as const };
+  const sprinterCases = startTripCase(
+    [],
+    testUsers.driver,
+    { ...input, busId: sprinter.id },
+    [sprinter],
+  );
+  expect(sprinterCases[0].busId).toBe(sprinter.id);
   expect(() =>
-    startTripCase([], testUsers.driver, { ...input, busId: "TRUCK" }, [
-      { ...data.vehicles[0], id: "TRUCK", type: "truck" },
+    startTripCase(
+      sprinterCases,
+      testUsers.driver,
+      { ...input, busId: sprinter.id },
+      [sprinter],
+    ),
+  ).toThrow("ya tiene un caso abierto");
+  expect(() =>
+    startTripCase([], testUsers.driver, { ...input, busId: "missing" }, [
+      sprinter,
     ]),
-  ).toThrow("autobús");
+  ).toThrow("unidad");
 });
 
 test("only both complete captures send the case to review and there is one closing result", () => {

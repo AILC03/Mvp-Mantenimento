@@ -2,6 +2,8 @@
 
 **Fecha:** 25 de octubre de 2026. Sustituye el alcance de la etapa 01 de unidades.
 
+**Ampliación verificada 29/10:** [entrega del alcance del 28/10](entrega-alcance-mvp-2026-10-28.md). Añade consulta mínima de incidencias, impresos, externos/carretera, circulación y validación de odómetro. Misma fuente JSONB, campos opcionales, comandos y transacciones. Resultados vigentes: 76 pruebas frontend, 32 unitarias backend y 23 HTTP.
+
 ## Qué está conectado
 
 La aplicación carga y guarda mediante NestJS/PostgreSQL: unidades, artículos, entradas y costos históricos, servicios/materiales/compatibilidad, tipos de revisión y aspectos, solicitudes y su conversión/rechazo, órdenes y ejecución, entregas/devoluciones, revisiones periódicas, golpes/incidencias/reparaciones, CAF/correcciones y casos pre/post con cierre. Los borradores guardados son privados por usuario y también se conservan en PostgreSQL.
@@ -25,6 +27,7 @@ La aplicación carga y guarda mediante NestJS/PostgreSQL: unidades, artículos, 
 | Método | Ruta | Función |
 |---|---|---|
 | GET | `/api/operations` | Snapshot autorizado, revisión y borrador propio |
+| GET | `/api/operations/trips/:id/incidents` | Incidencias mínimas de la unidad del caso; chofer solo caso propio, admin/mecánico |
 | POST | `/api/operations/commands` | Ejecutar un comando autorizado y devolver el estado actualizado |
 | POST | `/api/operations/import` | Importación histórica confirmada, solo ADMIN y base todavía vacía |
 | GET | `/api/vehicles` | Compatibilidad de lectura desde la misma fuente operativa |

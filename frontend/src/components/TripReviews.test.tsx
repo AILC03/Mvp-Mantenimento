@@ -21,7 +21,7 @@ test("driver completes pre/post, mechanic reviews the captures and closes the ca
     screen.getByRole("button", { name: "Iniciar caso de revisión" }),
   );
   await user.selectOptions(
-    screen.getByLabelText(/^Autobús del viaje/),
+    screen.getByLabelText(/^Unidad del viaje/),
     "BUS015",
   );
   fireEvent.change(screen.getByLabelText(/^Fecha de ida/), {

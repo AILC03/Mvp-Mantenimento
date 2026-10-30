@@ -1,5 +1,9 @@
 # Índice de documentación
 
+**Aclaración vigente del 30/10/2026:** [unidades Autobús/Sprinter, compatibilidad de claves y verificación](proyecto/unidades-sprinter-2026-10-30.md). Sustituye las exclusiones anteriores de Sprinter de viajes o circulación.
+
+**Implementación verificada el 29/10/2026:** [entrega del alcance del 28/10, uso, permisos y pruebas](proyecto/entrega-alcance-mvp-2026-10-28.md). No sustituye las decisiones originales ni declara preparación de producción.
+
 ## Base del proyecto
 
 - **Estado vigente del backend:** [operación integrada sin localStorage, importación y pruebas](proyecto/backend-operacion-etapa-02.md).
@@ -19,7 +23,7 @@
 
 - **Acceso vigente:** [login, sesiones y cuatro cuentas de prueba](operacion/acceso-y-usuarios-prueba.md). Reemplaza el selector de perfiles demo en la aplicación real.
 
-- **Ampliación vigente:** [altas de artículos, autobuses/camiones, tipos de servicio y revisiones](proyecto/altas-catalogos-y-unidades.md).
+- **Ampliación vigente:** [altas de artículos, unidades Autobús/Sprinter, tipos de servicio y revisiones](proyecto/altas-catalogos-y-unidades.md).
 
 - **Aclaraciones vigentes:** [CAF, revisiones y solicitudes de servicio](proyecto/aclaraciones-servicios-y-solicitudes.md). Complementan y corrigen los puntos indicados del documento original.
 
@@ -39,3 +43,9 @@
 - Registrar los cambios posteriores en documentos específicos y enlazarlos desde este índice.
 - Distinguir decisiones aprobadas, propuestas y dudas pendientes; no convertir propuestas en compromisos implícitos.
 - No incluir datos personales reales, credenciales, fotografías de operación ni comprobantes privados en el repositorio.
+
+## Alcance vigente — 28 de octubre de 2026
+
+- [Instrucciones para agentes](../AGENTS.md).
+- [Decisiones vigentes del MVP](proyecto/decisiones-mvp-2026-10-28.md): sustituye los puntos incompatibles del alcance anterior.
+- [Clasificación Autobús/Sprinter y compatibilidad del 30/10](proyecto/unidades-sprinter-2026-10-30.md): sustituye las exclusiones anteriores.

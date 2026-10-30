@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
@@ -21,6 +22,7 @@ import {
   vehicleIncidents,
   type AuthUser,
   type OperationsState,
+  type IncidentSummary,
 } from '@real-ejecutivo/domain';
 import { ZodError, z } from 'zod';
 import { PrismaService } from '../database/prisma.service';
@@ -94,6 +96,36 @@ export class OperationsService {
       revision: row.revision,
       imported: row.imported,
       draft: draft?.form ?? null,
+    };
+  }
+
+  async tripIncidents(
+    user: AuthUser,
+    tripId: string,
+  ): Promise<{ incidents: IncidentSummary[] }> {
+    if (!['ADMIN', 'LEAD_MECHANIC', 'DRIVER'].includes(user.role))
+      throw new ForbiddenException(
+        'Tu perfil no consulta incidencias de viaje.',
+      );
+    const row = await this.initialize();
+    const state = row.data as unknown as OperationsState;
+    const trip = state.trips.find(
+      (t) =>
+        t.id === tripId && (user.role !== 'DRIVER' || t.driverId === user.id),
+    );
+    if (!trip) throw new NotFoundException('Caso no disponible.');
+    return {
+      incidents: vehicleIncidents(trip.busId, state.workbench, state.trips).map(
+        (item) => ({
+          id: item.sourceId,
+          title: item.title,
+          date: item.date,
+          origin: item.source,
+          // En daños, notes es la atribución del actor, no la descripción del daño.
+          description: item.sourceId.startsWith('damage:') ? '' : item.notes,
+          resolved: Boolean(item.resolution),
+        }),
+      ),
     };
   }
 
@@ -211,6 +243,8 @@ export class OperationsService {
             orders: z.array(z.unknown()).max(10000),
             requests: z.array(z.unknown()).max(10000),
             fleet: z.unknown().optional(),
+            externalServices: z.array(z.unknown()).max(10000).optional(),
+            circulationDecisions: z.array(z.unknown()).max(10000).optional(),
           })
           .strict(),
         trips: z.array(z.unknown()).max(10000),
@@ -325,6 +359,8 @@ export class OperationsService {
       fleet.damages,
       fleet.resolutions,
       fleet.cafCorrections,
+      state.workbench.externalServices ?? [],
+      state.workbench.circulationDecisions ?? [],
     ]) {
       ids(list);
       if (list.some((item) => !vehicles.has(item.busId)))

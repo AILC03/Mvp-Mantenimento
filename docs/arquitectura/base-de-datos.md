@@ -32,7 +32,7 @@ User → TechnicalDecision ← Bus
 
 - UUID como identificadores internos; número económico único e independiente.
 - Relaciones con eliminación restringida para proteger el historial.
-- Índice único parcial para un checklist abierto por autobús (`closedAt IS NULL`).
+- Índice único parcial del modelo inicial para un checklist abierto por unidad (`closedAt IS NULL`). El flujo JSONB vigente también valida unicidad por ID para Autobús y Sprinter.
 - Una inspección por etapa y checklist.
 - Odómetro no negativo y comprobaciones básicas de fechas.
 - Revisión y resolución requieren usuario y fecha conjuntamente.
@@ -48,11 +48,11 @@ El esquema no implementa por sí solo todos los requisitos:
 - Validar que el usuario activo que captura inspecciones sea el operador del caso y que post siga a pre.
 - Exigir pre, post y revisión antes de cerrar; ejecutar comprobaciones y cierre en transacción.
 - Impedir ediciones no autorizadas de observaciones históricas.
-- Al vincular observación e incidencia, exigir que correspondan al mismo autobús.
+- Al vincular observación e incidencia, exigir que correspondan a la misma unidad.
 - Validar estructura JSON según versión del formato y existencia/acceso de evidencias privadas.
 - Normalizar email, placas y número económico antes de persistir; las unicidades actuales son sensibles a mayúsculas.
 - Validar permisos al asignar roles; rol único inicial, especialidades de técnicos pendientes.
-- Serializar decisiones técnicas por autobús y definir desempate de orden. Sin decisión, la condición es pendiente de revisión, nunca autorización implícita. Una decisión previa no debe ignorar restricciones de seguridad posteriores.
+- Serializar decisiones técnicas por unidad y definir desempate de orden. Sin decisión, la condición es pendiente de revisión, nunca autorización implícita. Una decisión previa no debe ignorar restricciones de seguridad posteriores. Autobús y Sprinter comparten las mismas reglas.
 
 No hay rutas CRUD ni permisos operativos implementados. El esquema no debe exponerse directamente a usuarios.
 

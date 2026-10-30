@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
   ArrowRight,
   BusFront,
@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import type { AuthUser } from "../auth";
 import type { ReviewType } from "../catalogs";
-import type { Vehicle } from "../data";
+import { vehicleTypeLabel, type Vehicle } from "../data";
 import {
   canCloseTrip,
   closeTripCase,
@@ -24,6 +24,8 @@ import {
   type TripCase,
 } from "../trip-reviews";
 import { Modal } from "./Modal";
+import { TripIncidents } from "./TripIncidents";
+import { remoteEnabled, startOperations } from "../operations-client";
 
 export function TripReviews({
   user,
@@ -58,6 +60,48 @@ export function TripReviews({
     id?: string;
   } | null>(null);
   const [dialogError, setDialogError] = useState("");
+  const [tripVehicles, setTripVehicles] = useState(vehicles);
+  const [loadingVehicles, setLoadingVehicles] = useState(false);
+  const [vehicleError, setVehicleError] = useState("");
+  const [vehicleReload, setVehicleReload] = useState(0);
+  const [startVehicleId, setStartVehicleId] = useState("");
+  useEffect(() => {
+    if (dialog?.kind !== "start") return;
+    if (!remoteEnabled()) {
+      setTripVehicles(vehicles);
+      return;
+    }
+    const controller = new AbortController();
+    setLoadingVehicles(true);
+    setTripVehicles([]);
+    setVehicleError("");
+    void startOperations(controller.signal)
+      .then((snapshot) => {
+        if (controller.signal.aborted) return;
+        setTripVehicles(snapshot.catalogs.vehicles);
+        setCases(snapshot.trips);
+        setStartVehicleId((id) =>
+          snapshot.catalogs.vehicles.some((v) => v.id === id) ? id : "",
+        );
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted)
+          setVehicleError(
+            error instanceof Error
+              ? error.message
+              : "No se pudieron cargar las unidades.",
+          );
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingVehicles(false);
+      });
+    return () => controller.abort();
+  }, [dialog?.kind, vehicleReload, vehicles]);
+  const buses = tripVehicles
+    .slice()
+    .sort((a, b) =>
+      a.fleetNumber.localeCompare(b.fleetNumber, "es", { numeric: true }),
+    );
   const selected = cases.find((item) => item.id === dialog?.id);
   const own = cases.filter(
     (item) => canCloseTrip(user) || item.driverId === user.id,
@@ -72,6 +116,11 @@ export function TripReviews({
           : !item.closedAt && !(item.pre && item.post)),
   );
   function open(kind: NonNullable<typeof dialog>["kind"], id?: string) {
+    if (kind === "start") {
+      setStartVehicleId("");
+      setVehicleError("");
+      setLoadingVehicles(remoteEnabled());
+    }
     setDialog({ kind, id });
     setDialogError("");
   }
@@ -96,6 +145,7 @@ export function TripReviews({
   }
   async function start(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (loadingVehicles || vehicleError || !buses.length) return;
     const fields = new FormData(event.currentTarget);
     if (
       await commit(
@@ -108,7 +158,7 @@ export function TripReviews({
               departureDate: String(fields.get("departureDate") ?? ""),
               returnDate: String(fields.get("returnDate") ?? ""),
             },
-            vehicles,
+            tripVehicles,
           ),
         "Caso iniciado. Completa pre y post trip para enviarlo a revisión.",
       )
@@ -180,7 +230,7 @@ export function TripReviews({
             <p>
               {canCloseTrip(user)
                 ? "Los casos llegan a pendientes cuando el chofer termina ambas revisiones."
-                : "Inicia un caso con el autobús y las fechas de tu viaje."}
+                : "Inicia un caso con la unidad y las fechas de tu viaje."}
             </p>
           </div>
         ) : (
@@ -267,25 +317,63 @@ export function TripReviews({
           <form onSubmit={start}>
             <p className="modal-description">
               El mismo chofer completa pre y post trip. Solo un caso abierto por
-              autobús.
+              unidad, sea Autobús o Sprinter.
             </p>
             {dialogError && (
               <div className="notice error" role="alert">
                 {dialogError}
               </div>
             )}
+            {loadingVehicles && (
+              <p role="status">Cargando unidades desde el servidor…</p>
+            )}
+            {vehicleError && (
+              <div className="notice error" role="alert">
+                <p>{vehicleError}</p>
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => setVehicleReload((n) => n + 1)}
+                >
+                  Reintentar carga de unidades
+                </button>
+              </div>
+            )}
+            {!loadingVehicles && !vehicleError && !buses.length && (
+              <p role="status">
+                No hay unidades registradas para iniciar un viaje. Admin debe
+                revisar el catálogo y el tipo de unidad.
+              </p>
+            )}
+            <p className="section-footnote">
+              Este flujo admite Autobús y Sprinter de pasajeros.
+            </p>
             <div className="field-grid">
               <label className="field full">
-                Autobús del viaje *
-                <select name="busId" required defaultValue="">
-                  <option value="">Selecciona el autobús</option>
-                  {vehicles
-                    .filter((vehicle) => vehicle.type === "bus")
-                    .map((vehicle) => (
-                      <option value={vehicle.id} key={vehicle.id}>
-                        {vehicle.fleetNumber} · {vehicle.model}
-                      </option>
-                    ))}
+                Unidad del viaje *
+                <select
+                  name="busId"
+                  required
+                  value={startVehicleId}
+                  onChange={(event) => setStartVehicleId(event.target.value)}
+                  disabled={
+                    loadingVehicles || Boolean(vehicleError) || !buses.length
+                  }
+                >
+                  <option value="">Selecciona la unidad</option>
+                  {buses.map((vehicle) => (
+                    <option value={vehicle.id} key={vehicle.id}>
+                      {[
+                        vehicle.fleetNumber,
+                        vehicleTypeLabel(vehicle.type),
+                        vehicle.brand,
+                        vehicle.model,
+                        vehicle.plate,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label className="field">
@@ -305,7 +393,13 @@ export function TripReviews({
               >
                 Cancelar
               </button>
-              <button type="submit" className="button primary">
+              <button
+                type="submit"
+                className="button primary"
+                disabled={
+                  loadingVehicles || Boolean(vehicleError) || !buses.length
+                }
+              >
                 Iniciar caso
               </button>
             </div>
@@ -518,6 +612,7 @@ function TripInspectionForm({
           </select>
         </label>
       )}
+      <TripIncidents tripId={item.id} />
       {!template ? (
         <div className="notice error" role="alert">
           El mecánico o administrador debe definir primero los aspectos en

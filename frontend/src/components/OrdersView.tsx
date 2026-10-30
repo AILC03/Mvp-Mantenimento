@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import {
   ArrowLeft,
   Check,
@@ -13,6 +13,7 @@ import {
 import type { AuthUser } from "../auth";
 import {
   currency,
+  vehicleTypeLabel,
   materialTotal,
   type Product,
   type SavedOrder,
@@ -62,6 +63,9 @@ export function OrdersView({
     null,
   );
   const [error, setError] = useState("");
+  const [printKind, setPrintKind] = useState<"requisition" | "order">(
+    "requisition",
+  );
   const order = data.orders.find((item) => item.id === selectedId);
   const canExecute = managesOrders(user);
   const visibleOrders = data.orders.filter(
@@ -94,6 +98,17 @@ export function OrdersView({
       setError("No se pudo abrir la impresión.");
     }
   }
+  useEffect(() => {
+    if (!order) return;
+    const before = () => document.body.classList.add("printing-requisition");
+    const after = () => document.body.classList.remove("printing-requisition");
+    window.addEventListener("beforeprint", before);
+    window.addEventListener("afterprint", after);
+    return () => {
+      window.removeEventListener("beforeprint", before);
+      window.removeEventListener("afterprint", after);
+    };
+  }, [order?.id]);
   if (!order)
     return (
       <section className="card orders-view">
@@ -219,8 +234,9 @@ export function OrdersView({
             </button>
             <h2>{order.number}</h2>
             <p>
-              {vehicle?.fleetNumber} · {vehicle?.model} · Creada{" "}
-              {new Date(order.createdAt).toLocaleString("es-MX")}
+              {vehicle?.fleetNumber} ·{" "}
+              {vehicle && vehicleTypeLabel(vehicle.type)} · {vehicle?.model} ·
+              Creada {new Date(order.createdAt).toLocaleString("es-MX")}
             </p>
           </div>
           <span className="badge neutral">
@@ -235,9 +251,24 @@ export function OrdersView({
           </div>
         )}
         <div className="order-actions">
-          <button className="button secondary" onClick={print}>
+          <button
+            className="button secondary"
+            onClick={() => {
+              flushSync(() => setPrintKind("requisition"));
+              print();
+            }}
+          >
             <Printer size={16} />
             Imprimir requisición
+          </button>
+          <button
+            className="button secondary"
+            onClick={() => {
+              flushSync(() => setPrintKind("order"));
+              print();
+            }}
+          >
+            <Printer size={16} /> Imprimir orden de trabajo
           </button>
           {canExecute &&
             ["Lista para iniciar", "Pendiente de liberación"].includes(
@@ -483,15 +514,50 @@ export function OrdersView({
       </section>
       {createPortal(
         <section className="requisition-sheet">
-          <h1>Real Ejecutivo · Requisición de materiales</h1>
+          <h1>
+            Real Ejecutivo ·{" "}
+            {printKind === "order"
+              ? "Orden de trabajo"
+              : "Requisición de materiales"}
+          </h1>
           <p>Orden: {order.number}</p>
           <p>
-            Unidad: {vehicle?.fleetNumber} · Fecha de impresión: {dateToday()}
+            Unidad: {vehicle?.fleetNumber} ·{" "}
+            {vehicle && vehicleTypeLabel(vehicle.type)} · Fecha de impresión:{" "}
+            {dateToday()}
           </p>
           <p>
             Solicita: {user.name} · Solicitud de origen:{" "}
             {source?.number ?? "Orden manual"}
           </p>
+          {printKind === "order" && (
+            <>
+              <p>
+                {vehicle?.brand} · {vehicle?.model} · Placa:{" "}
+                {vehicle?.plate || "Sin registro"}
+              </p>
+              <p>
+                Prioridad: {order.form.priority} · Programación:{" "}
+                {order.form.scheduledDate || "Sin fecha"} · Odómetro de
+                apertura: {order.form.odometer} km
+              </p>
+              <p>Observaciones: {order.form.reason || "Sin observaciones"}</p>
+              {order.form.services.map((service) => (
+                <article key={service.id}>
+                  <h2>{service.name}</h2>
+                  <p>
+                    Responsable: {service.assignee || "Por asignar físicamente"}{" "}
+                    · {service.hours} horas estimadas
+                  </p>
+                  <p>
+                    Instrucciones:{" "}
+                    {service.instructions || "Sin instrucciones adicionales"}
+                  </p>
+                </article>
+              ))}
+              <h2>Materiales estimados</h2>
+            </>
+          )}
           <table>
             <thead>
               <tr>
@@ -521,7 +587,10 @@ export function OrdersView({
               })}
             </tbody>
           </table>
-          <p>Materiales sujetos a entrega física y confirmación de almacén.</p>
+          <p>
+            Materiales sujetos a entrega física y confirmación de almacén. Este
+            impreso no cambia estados, inventario ni autoriza circulación.
+          </p>
           <div className="signature-lines">
             <span>Solicita: __________________</span>
             <span>Entrega: __________________</span>

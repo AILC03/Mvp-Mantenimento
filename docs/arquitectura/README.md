@@ -21,7 +21,7 @@ El modelo inicial de Bus/inspecciones se conserva como referencia y evolución h
 ## Reglas que deben influir en el diseño
 
 - Checklist e incidencia tienen ciclos de vida independientes.
-- Solo un caso de checklist abierto por autobús, incluso ante solicitudes concurrentes; confirmar impacto operativo.
+- Solo un caso de checklist abierto por unidad (Autobús o Sprinter), incluso ante solicitudes concurrentes.
 - Cierre de orden y autorización de circulación son acciones independientes.
 - Los servicios no ejecutados no desaparecen al cerrar una orden.
 - Entrega, consumo y devolución requieren conciliación sin descontar inventario dos veces.

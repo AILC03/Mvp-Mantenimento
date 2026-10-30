@@ -2,7 +2,11 @@
 
 Plataforma para gestionar unidades, inspecciones de viaje, incidencias, mantenimiento y materiales de Real Ejecutivo.
 
-**Estado al 25/10/2026:** MVP integrado, apto para demostración controlada; **no listo para producción**. Catálogos, solicitudes, órdenes, almacén, revisiones, historial, CAF y borradores privados se guardan en PostgreSQL mediante una API autenticada. La operación no depende de localStorage ni sessionStorage.
+**Estado al 30/10/2026:** MVP integrado, con el alcance solicitado el 28/10 y la clasificación Autobús/Sprinter; **no listo para producción**. Catálogos, solicitudes, órdenes, almacén, revisiones, historial, CAF, servicios externos, circulación y borradores privados se guardan en PostgreSQL mediante una API autenticada. La operación no depende de localStorage ni sessionStorage.
+
+**Unidades de pasajeros:** las categorías son **Autobús** y **Sprinter**. Ambas pueden realizar todos los flujos, incluidos pre/post y circulación. Las claves heredadas `truck`/`TRUCK` ahora significan Sprinter, no carga: no cambian IDs ni relaciones, ni se crean unidades nuevas. Se mantiene un caso abierto por unidad. Ver [aclaración, compatibilidad y pruebas del 30/10](docs/proyecto/unidades-sprinter-2026-10-30.md).
+
+El [alcance del 28/10](docs/proyecto/decisiones-mvp-2026-10-28.md) prevalece sobre antecedentes incompatibles. Ver [entrega y comprobaciones](docs/proyecto/entrega-alcance-mvp-2026-10-28.md), que distingue criterios de implementación y resultados verificados.
 
 Los requerimientos son preliminares; las propuestas técnicas no representan acuerdos finales con el cliente.
 
@@ -32,6 +36,11 @@ docs/
 - CAF cada 15,000 km, revisión general cada 45 días y emergencia cada 90 días. El vencimiento avisa, no bloquea.
 - Historial filtrable, incidencias/reparaciones y revisión pre/post de viaje con cierre único del caso. Cerrar un caso u orden no autoriza circulación.
 - Borradores privados por usuario en PostgreSQL; los formularios aún no guardados viven solo en memoria.
+- Consulta de incidencias activas/resueltas en ventana emergente desde pre/post, sin perder la captura ni exponer el expediente al chofer. Al iniciar un viaje se actualiza el catálogo de unidades desde la API, con carga/error/reintento, incluyendo Autobús y Sprinter.
+- Orden física imprimible para eléctrico/carrocero, además de la requisición existente; sin cuentas de técnicos.
+- Servicios externos/carretera por unidad, con prestador, materiales, mano de obra y total derivado en MXN. No afectan inventario ni órdenes internas.
+- Decisiones explícitas de circulación (admin/mecánico), con historial y estado inicial **Sin evaluar**. El resumen para foto manual de Autobús y Sprinter se muestra únicamente al pulsar **Resumen del estado de circulación de las unidades**, en Unidades; sin vista previa desplegada.
+- El cierre exige odómetro igual o mayor al de apertura de esa orden, sin bloquear capturas históricas por lecturas posteriores ni corregir registros previos.
 
 ## Arranque local (PowerShell)
 
@@ -86,7 +95,7 @@ npm --prefix backend test -- --runInBand
 npm --prefix backend run test:database
 ```
 
-Última validación: **69 pruebas frontend, 20 unitarias backend y 19 HTTP aprobadas**. La suite `test:database` requiere Docker y `.env`: crea una BD temporal propia, aplica migraciones y elimina solo esa BD; no limpia la base operativa. También se verificó un circuito Chrome de cuatro perfiles con Storage bloqueado, sin accesos al almacenamiento del navegador ni errores de página.
+Validación del 30/10: **80 pruebas frontend, 33 unitarias backend y 25 HTTP aprobadas**, builds correctos y ESLint del backend afectado sin errores. `test:database` requiere Docker y `.env`: crea una BD temporal propia, aplica migraciones y elimina solo esa BD; no limpia la base operativa. Chrome real verificó escritorio/móvil, Sprinter heredada en los flujos, historial, resumen e impresión PDF, con Storage bloqueado y sin errores JavaScript de página. Detalles en la [aclaración del 30/10](docs/proyecto/unidades-sprinter-2026-10-30.md) y la [entrega previa](docs/proyecto/entrega-alcance-mvp-2026-10-28.md).
 
 ## Límites y siguientes pasos
 

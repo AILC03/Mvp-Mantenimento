@@ -44,7 +44,7 @@ Se muestran por separado cantidad y **costo unitario por pieza o litro**, con un
 
 Se conserva `quantity = 5` y `unitCost = 100`. No se divide el precio unitario entre la cantidad ni se guarda 500 como costo de un litro. El total se deriva de ambos valores y también está disponible en el historial de entradas. No se introduce una política de valoración de inventario nueva.
 
-## Historial por autobús
+## Historial por unidad (Autobús y Sprinter)
 
 El resumen se muestra como tabla con fecha, categoría, revisión/servicio, estado, registro, responsable y detalles desplegables. No se eliminan reportes, respuestas, movimientos o notas anteriores.
 

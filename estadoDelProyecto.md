@@ -1,7 +1,13 @@
 # Real Ejecutivo — Estado del proyecto
 
-**Actualización:** 25 de octubre de 2026.  
+**Actualización:** 30 de octubre de 2026.
 **Estado general:** MVP en desarrollo. Autenticación y flujos operativos conectados a backend/PostgreSQL, sin persistencia operativa en localStorage. **No está listo para producción.**
+
+**Aclaración vigente del 30/10:** las unidades anteriormente denominadas de otra manera bajo `truck`/`TRUCK` son **Sprinter de pasajeros**. Ambas categorías (Autobús y Sprinter) aparecen en todos los selectores y participan en viajes, mantenimiento y circulación. Eliminada la exclusión de Sprinter en frontend y regla compartida del servidor; se conservan claves, IDs, historial y vínculos sin migración ni escrituras de reclasificación. Ver [detalle y verificación](docs/proyecto/unidades-sprinter-2026-10-30.md).
+
+**Entrega vigente:** implementados y verificados los cinco puntos del [encargo del 28/10](docs/proyecto/decisiones-mvp-2026-10-28.md): consulta mínima de incidencias desde pre/post; orden física y requisición; externos/carretera sin inventario; decisión explícita e historial de circulación con resumen admin; cierre con odómetro no inferior a apertura propia. Ver [uso, archivos, pruebas y límites](docs/proyecto/entrega-alcance-mvp-2026-10-28.md). Admin/mecánico como decisores y estado inicial Sin evaluar son los criterios de implementación adoptados en ese documento, no una nueva atribución de acuerdo al cliente.
+
+**Ajuste posterior verificado el 29/10:** incidencias en ventana emergente independiente, resumen de circulación visible solo al pulsar su botón y catálogo de autobuses actualizado desde la API al abrir un nuevo caso. Carga/error/vacío/reintento explícitos, fechas conservadas y sin reclasificación de unidades. Ver la sección final de la entrega para pruebas específicas.
 
 **Avance más reciente:** todos los módulos actuales y los borradores guardados usan `/api/operations`. Reglas compartidas en `shared/src`, comandos autorizados, transacciones, revisión/idempotencia y auditoría en PostgreSQL. La persistencia del MVP es un agregado JSONB versionado, no todavía tablas normalizadas para cada entidad. Los datos antiguos no se importaron ni borraron automáticamente: admin dispone de respaldo, revisión/importación y retiro confirmado de copias antiguas. Ver [etapa 02, arquitectura, pruebas y migración](docs/proyecto/backend-operacion-etapa-02.md), que sustituye el estado de la etapa 01.
 
@@ -13,7 +19,7 @@
 
 **Ajustes más recientes:** órdenes por categorías Pendientes/En proceso/Finalizadas sin contadores; bloqueo de finalización hasta entrega confirmada por almacén (puede igualar lo estimado); cantidades previstas de 1 por pieza y 0.5 por litro; entradas con total cantidad × costo unitario; historial tabular por unidad con filtros y tipo de revisión. Ver [reglas vigentes de esta ampliación](docs/proyecto/ordenes-categorias-historial-cantidades.md).
 
-**Última ampliación:** expediente de cada autobús, CAF cada **15,000 km**, revisión general cada **45 días** (confirmado por el usuario, no 40) y salidas de emergencia cada **90 días**. Órdenes con ejecución sin liberación de terceros, requisición imprimible y entregas/devoluciones confirmadas por almacén. Solo admin modifica información de unidades y tipos de revisión. Ver [detalle vigente](docs/proyecto/historial-ordenes-almacen-permisos.md).
+**Última ampliación:** expediente de cada unidad, CAF cada **15,000 km**, revisión general cada **45 días** (confirmado por el usuario, no 40) y salidas de emergencia cada **90 días**. Órdenes con ejecución sin liberación de terceros, requisición imprimible y entregas/devoluciones confirmadas por almacén. Solo admin modifica información de unidades y tipos de revisión. Ver [detalle vigente](docs/proyecto/historial-ordenes-almacen-permisos.md).
 
 Gestionar unidades, solicitudes de servicio, órdenes de mantenimiento, materiales de almacén y revisiones de viaje de Real Ejecutivo, sin depender del CRM ni del sistema de tours existentes.
 
@@ -167,9 +173,9 @@ El retorno conserva el formulario durante la navegación en memoria. Para conser
 
 La existencia se calcula como **entradas − entregas confirmadas + devoluciones confirmadas**. Almacén captura totales acumulados por orden y se aplica solo la diferencia: no hay doble descuento por reenviar los mismos valores. El servidor impide existencias negativas y devoluciones superiores a lo entregado, en transacción PostgreSQL. El comprobante se captura como referencia de texto, no como archivo adjunto. El inventario ya es compartido; valoración contable definitiva pendiente.
 
-### 6.5 Autobuses y camiones
+### 6.5 Unidades: Autobús y Sprinter
 
-- Catálogo común con tipos diferenciados: **autobús** y **camión**.
+- Catálogo común con tipos diferenciados: **Autobús** y **Sprinter** de pasajeros. `truck`/`TRUCK` son claves heredadas de Sprinter, no carga.
 - Número económico, marca, modelo, año, placas, VIN, odómetro y observaciones.
 - Validación de duplicados de número económico, placas y VIN.
 - Identificador interno estable en nuevas unidades, independiente del número económico.
@@ -206,7 +212,7 @@ La búsqueda/paginación visual consulta la colección cargada desde API en memo
 
 Nueva opción lateral **Revisiones**, separada de **Tipos de revisión**:
 
-1. El chofer inicia un caso indicando autobús y fechas de ida/regreso.
+1. El chofer inicia un caso indicando unidad (Autobús o Sprinter) y fechas de ida/regreso.
 2. Realiza pre trip y posteriormente post trip; cada aspecto requiere respuesta.
 3. Al guardar ambas capturas, el caso pasa automáticamente a pendiente de revisión.
 4. Mecánico principal o administrador consulta ambas y registra **Cierre de caso**.
@@ -219,17 +225,19 @@ Pre trip pendiente → Post trip pendiente → Pendiente de revisión → Cierre
 
 **No hay cierre negativo ni resultado de aprobación/rechazo.** Las fallas declaradas permanecen en el historial. Cerrar no resuelve incidencias ni autoriza circulación.
 
-Se conserva un solo caso abierto por autobús. La primera captura guarda una copia del formato y versión para que post trip no cambie aunque se edite el catálogo. Si aún no se definieron aspectos de viaje, se puede iniciar el caso, pero no enviar una captura sin formato.
+Se conserva un solo caso abierto por unidad. La primera captura guarda una copia del formato y versión para que post trip no cambie aunque se edite el catálogo. Si aún no se definieron aspectos de viaje, se puede iniciar el caso, pero no enviar una captura sin formato.
 
 ## 7. Pruebas y verificaciones realizadas
 
 Últimos resultados verificados antes de este documento:
 
-- **Frontend:** 69 pruebas aprobadas (66 existentes y tres nuevas del transporte) y compilación correcta, incluidas operación con Storage bloqueado, preservación ante fallo y borrador de servidor. Se conservan contraste, navegación, acceso, tablas y reglas de negocio.
+- **Frontend, 30/10:** 80 pruebas aprobadas en 19 archivos y compilación correcta. Incluyen Sprinter heredada en listados/selectores, pre/post/cierre, historial, circulación e impresión; se mantienen diálogos, recarga, reintento y reglas anteriores.
 - Buscador probado con **3,000 artículos**, limitado a 20 opciones renderizadas por página.
 - Pruebas de conservación de la orden, retorno contextual, alta directa independiente y cancelación del buscador sin cerrar el editor de servicio.
 - Pruebas de pre/post, permisos, fechas, caso abierto único, copia histórica del formato y cierre único.
-- **Backend:** 20 pruebas unitarias y 19 pruebas HTTP aprobadas; compilación y ESLint del código nuevo correctos. Ocho casos amplios del circuito operativo usan PostgreSQL real en BD temporal aislada. Compatibilidad de la API anterior verificada sin permitir una segunda fuente de verdad.
+- **Backend, 30/10:** 33 pruebas unitarias y 25 pruebas HTTP aprobadas; compilación y ESLint del código afectado correctos. PostgreSQL se verificó solo con bases temporales propias del script existente; sin migraciones ni seeds sobre la base operativa. Compatibilidad de estados antiguos y claves `truck`/`TRUCK` comprobada, con historial y permisos conservados.
+
+- **Chrome, 30/10:** escritorio 1440 px y móvil 375 px, Sprinter heredada en catálogo/filtros, solicitudes, pre/post/cierre y revisión periódica, externo sin inventario, resumen con ambas categorías y tipo, impresión PDF con Sprinter. Cero errores JS de página y cero llamadas a Storage en el circuito bloqueado. Sin prueba de impresora física o múltiples navegadores.
 - Ciclo de autenticación de las cuatro cuentas comprobado adicionalmente contra PostgreSQL real.
 - Última auditoría del frontend: sin vulnerabilidades reportadas. Persisten avisos de dependencias del backend documentados previamente; no se realizaron actualizaciones mayores forzadas.
 
@@ -315,16 +323,15 @@ No sobrescribir `.env` existente. No usar `docker compose down -v`, resets de mi
 4. Revisar rendimiento y carga simultánea con volumen operativo real; actualmente se serializan escrituras del agregado.
 5. Completar respaldo/restauración operativa y preparación de producción.
 
-### Operación del taller y almacén
+### Operación del taller y almacén (sin ampliar el alcance actual)
 
 - Validar con personal real la ejecución, pausas y finalización ya integradas a comandos transaccionales. Las órdenes del mecánico no requieren liberación de un tercero.
 - Servicios no ejecutados que permanecen pendientes y preventivos vencidos.
-- Completar captura de consumo y ajustes/reversiones. Entregas/devoluciones, requisición imprimible y aplicación de diferencias ya funcionan con la API.
-- Modelo de valoración del inventario y costos contables, evitando doble descuento.
-- Reparaciones externas, emergencias en carretera, garantías e historial de costos.
-- Completar consolidación de daños conocidos, evidencias y decisiones de circulación. Incidencias/reparaciones actuales ya están integradas al servidor.
-- Evidencias privadas, fotos y comprobantes reales.
-- Programación de revisiones periódicas y definición de sus aspectos con el cliente.
+- Entregas/devoluciones, orden/requisición imprimibles y aplicación de diferencias funcionan con la API. Turnos, consumo detallado obligatorio, mano de obra/gastos internos y valoración contable nueva quedan fuera de este encargo.
+- Externos/carretera por unidad ya permiten prestador, costos propios e historial; acumulación/reportes por unidad, garantías/facturas/pagos quedan fuera de esta entrega.
+- Consulta de incidencias e historial de decisiones de circulación implementados. No deduplicar ni consolidar automáticamente; la decisión sigue siendo humana e independiente de finalizar trabajos.
+- Evidencias privadas, fotos/comprobantes y administración completa de empleados quedan fuera de esta entrega.
+- Revisiones conservan avisos sin bloqueo ni programación automática; definir sus aspectos reales con el cliente.
 - Intervalo CAF confirmado en **15,000 km**; conservar correcciones extraordinarias solo de admin con auditoría.
 
 ### Seguridad y despliegue
@@ -341,7 +348,7 @@ No sobrescribir `.env` existente. No usar `docker compose down -v`, resets de mi
 - Operador asociado al viaje no significa responsable de causar un daño.
 - **Cerrar orden o caso no equivale a autorizar circulación.**
 - Solo CAF es preventivo; revisiones periódicas se administran por separado.
-- Autobuses y camiones son vehículos distintos.
+- Autobús y Sprinter son categorías distintas de pasajeros; ambas tienen los mismos flujos. No excluir Sprinter de viajes ni circulación.
 - No hay categorías de artículos por ahora.
 - No copiar componentes, código, estilos ni recursos propios de Atlas CMMS sin revisión de licencia. Se usó como referencia conceptual; la interfaz implementada es original.
 - No introducir información sensible ni usar como sistema definitivo hasta completar seguridad y preparación de producción, aunque la persistencia ya sea de servidor.
@@ -349,6 +356,7 @@ No sobrescribir `.env` existente. No usar `docker compose down -v`, resets de mi
 ## 12. Documentos de referencia
 
 - [Índice de documentación](docs/README.md).
+- [Decisiones vigentes del 28/10](docs/proyecto/decisiones-mvp-2026-10-28.md) y [entrega verificada](docs/proyecto/entrega-alcance-mvp-2026-10-28.md).
 - [Documento original del MVP](docs/proyecto/Real_Ejecutivo_Estado_Proyecto_MVP.md).
 - [CAF, revisiones y solicitudes](docs/proyecto/aclaraciones-servicios-y-solicitudes.md).
 - [Altas, catálogos y unidades](docs/proyecto/altas-catalogos-y-unidades.md).

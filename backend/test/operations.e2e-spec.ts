@@ -8,6 +8,7 @@ import {
   dateToday,
   emptyForm,
   availableStock,
+  externalTotal,
   type Command,
   type OperationsState,
   type OrderForm,
@@ -27,6 +28,7 @@ databaseTests('Operación completa con PostgreSQL aislado', () => {
   const cookies: Record<string, string> = {};
   const actorIds: Record<string, string> = {};
   const vehicleId = randomUUID(),
+    sprinterId = randomUUID(),
     productId = randomUUID(),
     requestId = randomUUID(),
     orderId = randomUUID(),
@@ -73,6 +75,7 @@ databaseTests('Operación completa con PostgreSQL aislado', () => {
       ['warehouse', 'WAREHOUSE_CLERK'],
       ['driver', 'DRIVER'],
       ['other', 'DRIVER'],
+      ['technician', 'TECHNICIAN'],
     ] as const) {
       const username = `ops-${key}`;
       const user = await prisma.user.create({
@@ -162,9 +165,36 @@ databaseTests('Operación completa con PostgreSQL aislado', () => {
 
   it('importa solo con confirmación de admin y conserva IDs sin atribuir actores demo', async () => {
     const catalogs = defaultCatalogs();
+    catalogs.vehicles.push({
+      ...catalogs.vehicles[0],
+      id: sprinterId,
+      fleetNumber: 'SPR-EXISTENTE',
+      type: 'truck',
+      plate: '',
+      vin: '',
+      odometer: 1000,
+    });
     const legacy = {
       catalogs,
       workbench: {
+        fleet: {
+          reviewJobs: [],
+          resolutions: [],
+          cafCorrections: [],
+          damages: [
+            {
+              id: 'sprinter-old-damage',
+              busId: sprinterId,
+              kind: 'Golpe',
+              area: 'Puerta Sprinter',
+              description: 'Historial anterior conservado',
+              date: '2026-01-01',
+              recordedAt: '2026-01-02T00:00:00Z',
+              actorId: 'historic',
+              actorName: 'Histórico',
+            },
+          ],
+        },
         orders: [],
         requests: [
           {
@@ -526,6 +556,466 @@ databaseTests('Operación completa con PostgreSQL aislado', () => {
       closedBy: { id: actorIds.mechanic },
       template: { version: 2 },
     });
+  });
+
+  it('registra externos con costos propios, recarga sin tocar stock y rechaza roles/campos ajenos', async () => {
+    const before = await latest();
+    const value: Command = {
+      type: 'external.record',
+      vehicleId,
+      input: {
+        kind: 'roadside',
+        date: dateToday(),
+        description: 'Reparación externa',
+        provider: 'Empresa de carretera',
+        materialsCost: 123.45,
+        laborCost: 0,
+        notes: 'Sin inventario',
+      },
+    };
+    for (const role of ['driver', 'warehouse', 'technician'])
+      await command(role, value, 403);
+    await command('mechanic', { ...value, vehicleId: randomUUID() }, 400);
+    await command(
+      'admin',
+      { ...value, input: { ...value.input, materialsCost: -1 } },
+      400,
+    );
+    await command(
+      'admin',
+      { ...value, input: { ...value.input, laborCost: 0.001 } },
+      400,
+    );
+    await command(
+      'admin',
+      { ...value, input: { ...value.input, date: '2026-02-30' } },
+      400,
+    );
+    await api()
+      .post('/api/operations/commands')
+      .set('Cookie', cookies.admin)
+      .set('Origin', origin)
+      .send({
+        revision,
+        commandId: randomUUID(),
+        command: {
+          ...value,
+          input: { ...value.input, total: 1, actorId: 'forged' },
+        },
+      })
+      .expect(400);
+    const saved = await command('mechanic', value);
+    await api()
+      .post('/api/operations/commands')
+      .set('Cookie', cookies.mechanic)
+      .set('Origin', origin)
+      .send(saved.envelope)
+      .expect(201);
+    const after = await latest();
+    expect(after.workbench.externalServices).toHaveLength(1);
+    expect(after.workbench.externalServices![0]).toMatchObject({
+      busId: vehicleId,
+      actorId: actorIds.mechanic,
+      actorName: 'Prueba mechanic',
+      date: dateToday(),
+    });
+    expect(externalTotal(after.workbench.externalServices![0])).toBe(123.45);
+    expect(after.catalogs).toEqual(before.catalogs);
+    expect(after.workbench.orders).toEqual(before.workbench.orders);
+    expect(after.workbench.fleet).toEqual(before.workbench.fleet);
+    expect(after.workbench.circulationDecisions).toBeUndefined();
+    expect(
+      (await latest('warehouse')).workbench.externalServices,
+    ).toBeUndefined();
+    expect((await latest('driver')).workbench.externalServices).toBeUndefined();
+  });
+
+  it('conserva decisiones explícitas y su historial sin autorización implícita inicial', async () => {
+    const before = await latest();
+    expect(before.workbench.circulationDecisions).toBeUndefined();
+    for (const role of ['driver', 'warehouse', 'technician'])
+      await command(
+        role,
+        { type: 'circulation.decide', vehicleId, status: 'authorized' },
+        403,
+      );
+    await command('admin', {
+      type: 'circulation.decide',
+      vehicleId,
+      status: 'authorized',
+    });
+    await command('mechanic', {
+      type: 'circulation.decide',
+      vehicleId,
+      status: 'unauthorized',
+    });
+    const state = await latest();
+    expect(state.workbench.circulationDecisions?.map((d) => d.status)).toEqual([
+      'unauthorized',
+      'authorized',
+    ]);
+    expect(state.workbench.circulationDecisions?.map((d) => d.actorId)).toEqual(
+      [actorIds.mechanic, actorIds.admin],
+    );
+    expect(
+      state.workbench.circulationDecisions?.every(
+        (d) => d.busId === vehicleId && !Number.isNaN(Date.parse(d.recordedAt)),
+      ),
+    ).toBe(true);
+    expect(
+      (await latest('driver')).workbench.circulationDecisions,
+    ).toBeUndefined();
+    expect(
+      (await latest('warehouse')).workbench.circulationDecisions,
+    ).toBeUndefined();
+  });
+
+  it('consulta incidencias mínimas solo de la unidad del caso propio, incluyendo resueltas sin autores/costos', async () => {
+    await latest();
+    const otherBus = (await latest()).catalogs.vehicles.find(
+      (v) => v.type === 'bus' && v.id !== vehicleId,
+    )!;
+    await command('mechanic', {
+      type: 'damage.add',
+      vehicleId: otherBus.id,
+      input: {
+        kind: 'Golpe',
+        area: 'OTRA-UNIDAD',
+        description: 'No debe aparecer',
+        date: dateToday(),
+      },
+    });
+    const path = `/api/operations/trips/${tripId}/incidents`;
+    await api().get(path).expect(401);
+    for (const role of ['warehouse', 'technician'])
+      await api().get(path).set('Cookie', cookies[role]).expect(403);
+    await api().get(path).set('Cookie', cookies.other).expect(404);
+    await api()
+      .get('/api/operations/trips/missing/incidents')
+      .set('Cookie', cookies.driver)
+      .expect(404);
+    for (const role of ['driver', 'admin', 'mechanic']) {
+      const response = await api()
+        .get(path)
+        .set('Cookie', cookies[role])
+        .expect(200);
+      const incidents = (
+        response.body as {
+          incidents: { id: string; resolved: boolean; title: string }[];
+        }
+      ).incidents;
+      expect(incidents.some((i) => i.resolved)).toBe(true);
+      expect(incidents.some((i) => !i.resolved)).toBe(true);
+      expect(incidents.some((i) => i.title.includes('OTRA-UNIDAD'))).toBe(
+        false,
+      );
+      for (const item of incidents)
+        expect(Object.keys(item).sort()).toEqual([
+          'date',
+          'description',
+          'id',
+          'origin',
+          'resolved',
+          'title',
+        ]);
+      expect(JSON.stringify(incidents)).not.toContain(actorIds.mechanic);
+      expect(JSON.stringify(incidents)).not.toContain('Prueba mechanic');
+    }
+  });
+
+  it('rechaza cierre inferior a apertura, admite captura histórica sin usar máximo posterior y conserva circulación', async () => {
+    const state = await latest();
+    const id = randomUUID();
+    await command('mechanic', {
+      type: 'order.create',
+      clientId: id,
+      form: {
+        ...form,
+        sourceRequestId: undefined,
+        services: form.services.map((s) => ({ ...s, materials: [] })),
+      },
+    });
+    await command('mechanic', {
+      type: 'order.change',
+      id,
+      action: 'start',
+      notes: '',
+    });
+    const finish: Command = {
+      type: 'order.finish',
+      id,
+      input: {
+        date: '2026-01-01',
+        odometer: 1,
+        performedServiceIds: ['service-1'],
+        unperformedReasons: {},
+        notes: '',
+      },
+    };
+    const failed = await command('mechanic', finish, 400);
+    expect((failed.state as unknown as { message: string }).message).toContain(
+      'apertura',
+    );
+    await command('mechanic', {
+      ...finish,
+      input: { ...finish.input, odometer: 1000 },
+    });
+    const after = await latest();
+    expect(
+      after.workbench.orders.find((o) => o.id === id)?.completion?.odometer,
+    ).toBe(1000);
+    expect(after.workbench.circulationDecisions).toEqual(
+      state.workbench.circulationDecisions,
+    );
+    expect(after.workbench.externalServices).toEqual(
+      state.workbench.externalServices,
+    );
+  });
+
+  it('una Sprinter heredada conserva identidad/historial y completa solicitud, orden, revisión, externo y circulación', async () => {
+    const before = await latest();
+    const existing = before.catalogs.vehicles.find((v) => v.id === sprinterId)!;
+    expect(existing.type).toBe('truck');
+    expect(
+      (await latest('driver')).catalogs.vehicles.find(
+        (v) => v.id === sprinterId,
+      ),
+    ).toEqual(existing);
+    const id = randomUUID(),
+      request = randomUUID(),
+      service = randomUUID();
+    await command('driver', {
+      type: 'request.create',
+      clientId: request,
+      input: {
+        busId: sprinterId,
+        title: 'Servicio Sprinter',
+        description: 'Mantenimiento de pasajeros',
+        odometer: '1000',
+      },
+    });
+    await command('mechanic', {
+      type: 'service.save',
+      clientId: service,
+      input: {
+        name: 'Servicio Sprinter',
+        category: 'Eléctrico',
+        hours: 1,
+        description: 'Revisar',
+        compatibleVehicleIds: [sprinterId],
+        materials: [{ productId, quantity: 1 }],
+      },
+    });
+    await command('mechanic', {
+      type: 'order.create',
+      clientId: id,
+      form: {
+        ...form,
+        busId: sprinterId,
+        sourceRequestId: request,
+        services: [
+          {
+            ...form.services[0],
+            catalogId: service,
+            name: 'Servicio Sprinter',
+            materials: [{ id: 'spr-m', productId, quantity: 1 }],
+          },
+        ],
+      },
+    });
+    await command('mechanic', {
+      type: 'order.change',
+      id,
+      action: 'start',
+      notes: '',
+    });
+    const finish: Command = {
+      type: 'order.finish',
+      id,
+      input: {
+        date: dateToday(),
+        odometer: 1100,
+        performedServiceIds: ['service-1'],
+        unperformedReasons: {},
+        notes: 'Sprinter terminada',
+      },
+    };
+    await command('mechanic', finish, 400);
+    await command('warehouse', {
+      type: 'materials.confirm',
+      id,
+      totals: [{ productId, delivered: 1, returned: 0 }],
+      notes: '',
+    });
+    await command('mechanic', finish);
+    await command('mechanic', {
+      type: 'review.record',
+      vehicleId: sprinterId,
+      templateId: 'general',
+      input: {
+        date: dateToday(),
+        answers: { a1: 'good' },
+        notes: 'General Sprinter',
+      },
+    });
+    const stockBefore = await latest();
+    for (const role of ['driver', 'warehouse', 'technician']) {
+      await command(
+        role,
+        {
+          type: 'external.record',
+          vehicleId: sprinterId,
+          input: {
+            kind: 'roadside',
+            date: dateToday(),
+            description: 'Sprinter carretera',
+            provider: 'Prestador',
+            materialsCost: 5,
+            laborCost: 10,
+            notes: '',
+          },
+        },
+        403,
+      );
+      await command(
+        role,
+        {
+          type: 'circulation.decide',
+          vehicleId: sprinterId,
+          status: 'authorized',
+        },
+        403,
+      );
+    }
+    await command('mechanic', {
+      type: 'external.record',
+      vehicleId: sprinterId,
+      input: {
+        kind: 'roadside',
+        date: dateToday(),
+        description: 'Sprinter carretera',
+        provider: 'Prestador',
+        materialsCost: 5,
+        laborCost: 10,
+        notes: '',
+      },
+    });
+    await command('admin', {
+      type: 'circulation.decide',
+      vehicleId: sprinterId,
+      status: 'authorized',
+    });
+    await command('mechanic', {
+      type: 'circulation.decide',
+      vehicleId: sprinterId,
+      status: 'unauthorized',
+    });
+    const after = await latest();
+    expect(after.catalogs).toEqual(stockBefore.catalogs);
+    expect(after.workbench.orders).toEqual(stockBefore.workbench.orders);
+    expect(after.catalogs.vehicles.find((v) => v.id === sprinterId)).toEqual(
+      existing,
+    );
+    expect(
+      after.workbench.fleet?.damages.find(
+        (d) => d.id === 'sprinter-old-damage',
+      ),
+    ).toEqual(
+      before.workbench.fleet?.damages.find(
+        (d) => d.id === 'sprinter-old-damage',
+      ),
+    );
+    expect(
+      after.workbench.externalServices?.find((r) => r.busId === sprinterId)
+        ?.description,
+    ).toBe('Sprinter carretera');
+    expect(
+      after.workbench.circulationDecisions
+        ?.filter((r) => r.busId === sprinterId)
+        .map((r) => r.status),
+    ).toEqual(['unauthorized', 'authorized']);
+  });
+
+  it('Sprinter completa pre/post/cierre manteniendo un solo caso abierto por unidad y roles', async () => {
+    await latest();
+    const id = randomUUID();
+    const start: Command = {
+      type: 'trip.start',
+      clientId: id,
+      input: {
+        busId: sprinterId,
+        departureDate: dateToday(),
+        returnDate: dateToday(),
+      },
+    };
+    for (const role of ['warehouse', 'mechanic', 'technician'])
+      await command(role, start, 403);
+    await command('driver', start);
+    await command('other', { ...start, clientId: randomUUID() }, 400);
+    const path = `/api/operations/trips/${id}/incidents`;
+    const incidents = await api()
+      .get(path)
+      .set('Cookie', cookies.driver)
+      .expect(200);
+    expect(JSON.stringify(incidents.body)).toContain(
+      'Historial anterior conservado',
+    );
+    await api().get(path).set('Cookie', cookies.other).expect(404);
+    await command(
+      'driver',
+      {
+        type: 'trip.submit',
+        id,
+        stage: 'post',
+        answers: { t1: 'good' },
+        notes: '',
+        templateId: 'trip',
+      },
+      400,
+    );
+    await command('driver', {
+      type: 'trip.submit',
+      id,
+      stage: 'pre',
+      answers: { t1: 'fault' },
+      notes: 'Sprinter pre',
+      templateId: 'trip',
+    });
+    await command('mechanic', { type: 'trip.close', id, notes: '' }, 400);
+    await command(
+      'other',
+      {
+        type: 'trip.submit',
+        id,
+        stage: 'post',
+        answers: { t1: 'good' },
+        notes: '',
+      },
+      400,
+    );
+    await command('driver', {
+      type: 'trip.submit',
+      id,
+      stage: 'post',
+      answers: { t1: 'good' },
+      notes: 'Sprinter post',
+    });
+    await command('driver', { type: 'trip.close', id, notes: '' }, 403);
+    await command('mechanic', { type: 'trip.close', id, notes: 'Revisada' });
+    await command('mechanic', { type: 'trip.close', id, notes: '' }, 400);
+    const after = await latest();
+    expect(after.trips.find((t) => t.id === id)).toMatchObject({
+      busId: sprinterId,
+      fleetNumber: 'SPR-EXISTENTE',
+      closingNotes: 'Revisada',
+      pre: { notes: 'Sprinter pre' },
+      post: { notes: 'Sprinter post' },
+    });
+    expect(
+      after.workbench.circulationDecisions?.find((r) => r.busId === sprinterId)
+        ?.status,
+    ).toBe('unauthorized');
+    await command('driver', { ...start, clientId: randomUUID() });
   });
 
   it('serializa capturas simultáneas sin perder entradas y conserva auditoría', async () => {

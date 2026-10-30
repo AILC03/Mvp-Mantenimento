@@ -9,7 +9,7 @@
 - Dar de alta autobuses con los datos previstos.
 - Dar de alta tipos de servicio.
 - Dar de alta tipos de revisión con aspectos escritos por el usuario; cada aspecto tendrá las opciones **Bien / Con falla**.
-- Dar de alta camiones. El usuario confirmó que **camiones y autobuses son vehículos distintos**.
+- Dar de alta Sprinter de pasajeros, categoría distinta de Autobús. La aclaración del 30/10 sustituye la denominación anterior: las claves `truck`/`TRUCK` se conservan por compatibilidad y significan Sprinter, no carga.
 
 ## Interfaz implementada
 
@@ -28,9 +28,9 @@ Las nuevas secciones son «Unidades», «Artículos de almacén», «Tipos de se
 
 Valoración de inventario, desperdicios, conciliación y compras siguen pendientes; no se aplicó FIFO o promedio ponderado como decisión implícita.
 
-### Autobuses y camiones
+### Unidades: Autobús y Sprinter
 
-- Un catálogo común con tipo **autobús/camión** y posibilidad de filtrar.
+- Un catálogo común con tipo **Autobús/Sprinter** y posibilidad de filtrar. Ambas categorías participan en todos los flujos.
 - Identificador interno estable independiente del número económico en nuevas unidades.
 - Número económico, tipo y odómetro obligatorios en el prototipo.
 - Marca, modelo, año, placas, VIN/serie y observaciones; datos identificativos no disponibles pueden quedar vacíos.
@@ -38,7 +38,7 @@ Valoración de inventario, desperdicios, conciliación y compras siguen pendient
 - No existe aprobación técnica implícita por registrar o editar una unidad.
 - Las nuevas unidades aparecen en solicitudes del chofer y órdenes del mecánico. Las observaciones de ficha no sustituyen registros de incidencias.
 
-Los datos demo originales conservan sus identificadores anteriores por compatibilidad con solicitudes y órdenes locales. En PostgreSQL será necesario evaluar la evolución del modelo `Bus` a unidades tipadas antes de integrar camiones; no se cambió el esquema real en esta entrega.
+Los datos originales conservan sus identificadores y relaciones. La operación vigente usa JSONB; `truck`/`TRUCK` se interpretan como Sprinter sin cambiar IDs ni generar unidades nuevas. No se requiere migración de valores. Ver [compatibilidad y alcance vigente](unidades-sprinter-2026-10-30.md).
 
 ### Tipos de servicio
 

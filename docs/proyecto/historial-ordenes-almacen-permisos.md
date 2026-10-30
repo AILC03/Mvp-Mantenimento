@@ -11,10 +11,12 @@
 
 ## Permisos de la interfaz
 
+**Ampliación implementada y verificada 29/10:** [externos/carretera, decisiones de circulación, consulta de incidencias e impresos](entrega-alcance-mvp-2026-10-28.md). Las [decisiones del 28/10](decisiones-mvp-2026-10-28.md) prevalecen sobre propuestas incompatibles.
+
 | Acción | Admin | Mecánico principal | Almacén | Chofer |
 |---|---|---|---|---|
 | Consultar expediente de unidades | Sí | Sí | No | No |
-| Alta/edición de información de autobuses y camiones | Sí | No | No | No |
+| Alta/edición de unidades: Autobús y Sprinter | Sí | No | No | No |
 | Alta/edición de tipos de revisión | Sí | No | No | No |
 | Realizar revisiones periódicas existentes, sin asignación | Sí | Sí | No | No |
 | Capturar pre/post del propio viaje | No | No | No | Sí |
@@ -27,7 +29,7 @@
 
 El mecánico conserva el acceso a tipos de servicio; no recibe acceso a Artículos de almacén ni a Tipos de revisión. Del inicio del admin se retiró la tarjeta de revisiones periódicas; mantiene el catálogo de tipos. Las realizaciones también pueden capturarse desde el expediente, sin asignaciones.
 
-Estos permisos controlan la aplicación actual. Los datos operativos siguen siendo modificables en el navegador: falta autorización backend de negocio, filtros y persistencia PostgreSQL. No se presenta la ocultación de menús como protección suficiente para datos reales.
+Estos permisos se validan también en backend. Externos/carretera y circulación se reservan a admin/mecánico; chofer consulta solo incidencias mínimas de la unidad de un caso propio. Ocultar menús no sustituye autorización.
 
 ## Expediente de la unidad
 
@@ -42,7 +44,7 @@ En **Unidades**, seleccionar **Ver historial** muestra:
 - Confirmaciones de reparación, actor, fecha, explicación y orden finalizada relacionada opcional.
 - Correcciones de CAF con valor anterior, nuevo, motivo y administrador responsable.
 
-El odómetro mostrado usa la ficha y las lecturas registradas al terminar órdenes; no es telemetría. Una lectura de ejecución es un dato del servicio, no un permiso para editar la ficha del autobús.
+El odómetro mostrado usa la ficha y las lecturas registradas al terminar órdenes; no es telemetría. Una lectura de ejecución es un dato del servicio, no un permiso para editar la ficha de la unidad. Autobús y Sprinter comparten los mismos flujos y permisos.
 
 El historial muestra lo disponible en este entorno, no datos históricos externos que no se hayan cargado. Las observaciones antiguas de la ficha se muestran como texto heredado y no se declaran reparadas automáticamente. Las fallas de capturas diferentes se conservan como observaciones independientes; su consolidación como un mismo daño conocido sigue pendiente de validación.
 
@@ -78,9 +80,9 @@ Almacén consulta órdenes y abre **Dar salida a materiales**. Se muestran estim
 - Si el artículo no tiene existencia, primero se registra una entrada real en almacén. No se precarga stock ficticio.
 - El movimiento conserva actor, fecha, artículos y cantidades. Las entregas/devoluciones pueden capturarse después de finalizar el trabajo para respetar el proceso diferido ya descrito.
 
-La salida y sus devoluciones viven dentro del mismo registro operativo que la orden. La existencia se deriva de ese historial y las entradas del catálogo; no se realiza un segundo descuento separado que pudiera quedar aplicado a medias. Esto no garantiza concurrencia entre pestañas ni sustituye una transacción PostgreSQL.
+La salida y sus devoluciones viven dentro del mismo registro operativo que la orden. La existencia se deriva de ese historial y las entradas del catálogo, sin segundo descuento separado. Se guarda mediante transacción PostgreSQL, bloqueo y revisión contra conflictos.
 
-Los costos de salida/devolución usan un costo de referencia congelado por artículo y orden desde su primera entrega. Es una estimación histórica del prototipo, **no una decisión de valoración contable FIFO/promedio**. Mano de obra y gastos externos siguen pendientes.
+Los costos de salida/devolución usan un costo de referencia congelado por artículo y orden desde su primera entrega; **no una valoración contable FIFO/promedio**. No se añaden mano de obra/gastos a órdenes internas. Externos/carretera tienen importes propios en su registro separado dentro del mismo agregado operativo, sin inventario.
 
 Una corrección de cantidades equivocadas requiere un flujo explícito de ajustes/reversiones posterior; no se permite reescribir silenciosamente movimientos confirmados.
 
@@ -88,10 +90,12 @@ Una corrección de cantidades equivocadas requiere un flujo explícito de ajuste
 
 **Imprimir requisición** abre la impresión del navegador. Permite impresora o guardar en PDF. La hoja contiene orden, unidad, fecha, materiales, unidades, cantidades y firmas de solicitud/entrega/recepción. Imprimir no entrega materiales ni afecta existencias.
 
+**Imprimir orden de trabajo** entrega unidad, servicios, responsable escrito, instrucciones y materiales estimados para eléctrico/carrocero. No requiere cuentas técnicas. Almacén registra movimientos y el mecánico finaliza con el flujo existente; cierre no inferior al odómetro de apertura propia.
+
 ## Límites actuales
 
 - Registros operativos en PostgreSQL, compartidos entre usuarios autorizados; consultar cambios ajenos al recargar. No hay actualización en vivo.
-- Permisos, movimientos y auditoría operativos locales; falta su implementación autorizada en servidor.
+- Permisos, movimientos y auditoría ya implementados en servidor; preparación de producción pendiente.
 - Sin evidencia fotográfica privada ni importación de historial de otros sistemas.
 - Sin autorización de circulación automática.
 - Datos previos preservados; los nuevos campos de órdenes y flota no requieren borrar almacenamiento.

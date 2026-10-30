@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Get,
   Header,
+  Param,
   Post,
   Req,
   UseGuards,
@@ -34,6 +35,11 @@ export class OperationsController {
   @Header('Cache-Control', 'no-store')
   snapshot(@Req() request: AuthenticatedRequest) {
     return this.operations.snapshot(request.auth.user);
+  }
+  @Get('trips/:id/incidents')
+  @Header('Cache-Control', 'no-store')
+  incidents(@Req() request: AuthenticatedRequest, @Param('id') id: string) {
+    return this.operations.tripIncidents(request.auth.user, id);
   }
   @Post('commands')
   @Header('Cache-Control', 'no-store')

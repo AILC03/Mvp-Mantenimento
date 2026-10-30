@@ -60,7 +60,7 @@ test("articles support pieces or litres with historical entries and no categorie
   ).toThrow("fecha válida");
 });
 
-test("buses and trucks have distinct types, stable IDs and shared duplicate checks", () => {
+test("Autobús and Sprinter keep legacy type keys, stable IDs and shared duplicate checks", () => {
   const data = defaultCatalogs();
   const input = {
     ...data.vehicles[0],

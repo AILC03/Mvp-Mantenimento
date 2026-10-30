@@ -271,7 +271,7 @@ export function saveVehicle(
   )
     throw new Error("El VIN ya está registrado.");
   if (!["bus", "truck"].includes(input.type))
-    throw new Error("Selecciona autobús o camión.");
+    throw new Error("Selecciona Autobús o Sprinter.");
   if (!Number.isSafeInteger(input.odometer) || input.odometer < 0)
     throw new Error("El odómetro debe ser un entero igual o mayor a cero.");
   if (

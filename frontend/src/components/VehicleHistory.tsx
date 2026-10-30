@@ -8,7 +8,12 @@ import {
 } from "lucide-react";
 import type { AuthUser } from "../auth";
 import type { Catalogs } from "../catalogs";
-import { currency, materialTotal, type Vehicle } from "../data";
+import {
+  currency,
+  materialTotal,
+  vehicleTypeLabel,
+  type Vehicle,
+} from "../data";
 import {
   addDamage,
   correctCaf,
@@ -26,6 +31,8 @@ import { loadTripCases, tripStatus } from "../trip-reviews";
 import type { CommitWorkbench } from "./OrdersView";
 import { Modal } from "./Modal";
 import { PeriodicReviewForm } from "./PeriodicReviews";
+import { UnitRecords } from "./UnitRecords";
+import { circulationLabels, externalTotal } from "../unit-records";
 import {
   emptyHistoryFilters,
   filterHistory,
@@ -78,6 +85,53 @@ export function VehicleHistory({
   const incidents = vehicleIncidents(vehicle.id, data, tripLoad.cases);
   const jobs = fleet.reviewJobs.filter((job) => job.busId === vehicle.id);
   const timeline: HistoryRow<ReactNode>[] = [];
+  for (const record of (data.externalServices ?? []).filter(
+    (item) => item.busId === vehicle.id,
+  ))
+    timeline.push({
+      id: `external:${record.id}`,
+      category: "Servicios externos",
+      status: "Registrado",
+      types: [record.kind === "roadside" ? "Carretera" : "Externo"],
+      actor: record.actorName,
+      date: record.date,
+      at: record.recordedAt,
+      title: `Servicio ${record.kind === "roadside" ? "de carretera" : "externo"} · ${record.description}`,
+      body: (
+        <>
+          <p>Prestador: {record.provider}</p>
+          <p>
+            Materiales: {currency(record.materialsCost)} · Mano de obra:{" "}
+            {currency(record.laborCost)} · Total:{" "}
+            {currency(externalTotal(record))}
+          </p>
+          <p>{record.notes}</p>
+          <small>
+            Capturó: {record.actorName} ·{" "}
+            {new Date(record.recordedAt).toLocaleString("es-MX")}. Sin
+            movimientos de inventario.
+          </small>
+        </>
+      ),
+    });
+  for (const decision of (data.circulationDecisions ?? []).filter(
+    (item) => item.busId === vehicle.id,
+  ))
+    timeline.push({
+      id: `circulation:${decision.id}`,
+      category: "Circulación",
+      status: circulationLabels[decision.status],
+      types: ["Decisión explícita"],
+      actor: decision.actorName,
+      at: decision.recordedAt,
+      title: `Circulación · ${circulationLabels[decision.status]}`,
+      body: (
+        <p>
+          {decision.actorName} ·{" "}
+          {new Date(decision.recordedAt).toLocaleString("es-MX")}
+        </p>
+      ),
+    });
   for (const order of orders) {
     timeline.push({
       id: `order:${order.id}`,
@@ -422,12 +476,13 @@ export function VehicleHistory({
             </button>
             <h2>{vehicle.fleetNumber} · Historial de la unidad</h2>
             <p>
-              {vehicle.brand} · {vehicle.model} · {vehicle.plate} ·{" "}
+              {vehicleTypeLabel(vehicle.type)} · {vehicle.brand} ·{" "}
+              {vehicle.model} · {vehicle.plate} ·{" "}
               {odometer.toLocaleString("es-MX")} km registrados
             </p>
           </div>
           <span className="badge neutral">
-            Condición técnica no autorizada por esta vista
+            Circulación sujeta a decisión explícita
           </span>
         </div>
         {tripLoad.error && (
@@ -435,6 +490,12 @@ export function VehicleHistory({
             {tripLoad.error}
           </div>
         )}
+        <UnitRecords
+          vehicle={vehicle}
+          user={user}
+          data={data}
+          onCommit={onCommit}
+        />
         <p className="modal-description">
           Se muestra el historial registrado en el servidor. No hay datos
           históricos externos cargados ni telemetría; los faltantes aparecen
@@ -608,6 +669,8 @@ export function VehicleHistory({
               {(
                 [
                   "Servicios",
+                  "Servicios externos",
+                  "Circulación",
                   "Revisiones",
                   "Solicitudes",
                   "Materiales",
@@ -789,7 +852,7 @@ export function VehicleHistory({
           >
             <p className="modal-description">
               No modifica ni elimina las órdenes históricas. Se agrega una
-              entrada de auditoría solo para este autobús.
+              entrada de auditoría solo para esta unidad.
             </p>
             {error && (
               <div className="notice error" role="alert">

@@ -8,7 +8,7 @@ Fecha: 24 de octubre de 2026.
 
 Primera API operativa persistente sobre NestJS/Prisma/PostgreSQL. **El catálogo de Unidades del frontend todavía no consume esta API.** No se sustituyeron los datos locales ni se importaron los registros del navegador. Autenticación sigue siendo el único circuito integrado de extremo a extremo en la interfaz.
 
-Se amplió el modelo existente `Bus` para autobuses y camiones, conservando sus UUID, relaciones y registros. La migración aditiva `20261024000100_operational_vehicles` añade tipo, kilometraje, notas y versión; se aplicó sobre PostgreSQL local sin recrear el volumen. Las unidades anteriores reciben tipo BUS, kilometraje 0 (valor inicial, no lectura histórica) y notas vacías hasta su conciliación explícita.
+Se amplió el modelo existente `Bus` para unidades tipadas, conservando sus UUID, relaciones y registros. La migración aditiva `20261024000100_operational_vehicles` añade tipo, kilometraje, notas y versión; se aplicó sobre PostgreSQL local sin recrear el volumen. Las unidades anteriores reciben tipo BUS, kilometraje 0 (valor inicial, no lectura histórica) y notas vacías hasta su conciliación explícita. Aclaración vigente del 30/10: las categorías son Autobús y Sprinter de pasajeros; las claves heredadas `truck`/`TRUCK` significan Sprinter. No alterar migraciones históricas ni reclasificar IDs para renombrar.
 
 ## API
 
@@ -40,7 +40,7 @@ Cuerpo de alta:
 
 Para editar, enviar los mismos campos más `version`, tomado de la última respuesta. Cada cambio incrementa la versión. La comprobación y modificación son atómicas; si otra persona ya guardó, responde 409 sin sobrescribir su cambio.
 
-- `type`: `bus` o `truck`.
+- `type`: `bus` (Autobús) o `truck` (Sprinter de pasajeros; clave heredada).
 - Número económico obligatorio (máximo 30 caracteres), normalizado a mayúsculas.
 - Placa y VIN vacíos se guardan como null para no impedir otras altas sin estos datos.
 - VIN no vacío: 17 caracteres, sin I/O/Q.

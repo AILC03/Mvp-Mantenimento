@@ -28,6 +28,7 @@ enum InspectionStage {
 
 enum VehicleType {
   BUS
+  // Clave heredada: Sprinter de pasajeros, no vehículo de carga.
   TRUCK
 }
 

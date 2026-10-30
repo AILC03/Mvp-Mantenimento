@@ -4,7 +4,7 @@ import App from "../testing/WorkbenchHarness";
 import { CATALOGS_KEY } from "../catalogs";
 import { WORKBENCH_KEY } from "../requests";
 
-test("a new truck is available to the driver and requests survive reload", async () => {
+test("a new Sprinter keeps the legacy truck key and requests survive reload", async () => {
   const user = userEvent.setup();
   const app = render(<App />);
   await user.selectOptions(
@@ -27,7 +27,7 @@ test("a new truck is available to the driver and requests survive reload", async
     screen.getByLabelText(/^Unidad del reporte/),
     catalogs.vehicles.at(-1).id,
   );
-  await user.type(screen.getByLabelText(/^Asunto/), "Reporte del camión");
+  await user.type(screen.getByLabelText(/^Asunto/), "Reporte de la Sprinter");
   await user.type(
     screen.getByLabelText(/^¿Qué ocurrió/),
     "Necesita atención del taller.",
@@ -36,7 +36,7 @@ test("a new truck is available to the driver and requests survive reload", async
   expect(screen.getByText("Pendiente de revisión")).toBeInTheDocument();
   app.unmount();
   render(<App />);
-  expect(screen.getByText("Reporte del camión")).toBeInTheDocument();
+  expect(screen.getByText("Reporte de la Sprinter")).toBeInTheDocument();
   expect(screen.getByText("CAM777")).toBeInTheDocument();
 });
 

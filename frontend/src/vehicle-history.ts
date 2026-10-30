@@ -1,5 +1,7 @@
 export type HistoryCategory =
   | "Servicios"
+  | "Servicios externos"
+  | "Circulación"
   | "Revisiones"
   | "Solicitudes"
   | "Materiales"

@@ -12,7 +12,7 @@ No se extrajeron componentes de Atlas ni se modificó su código.
 
 ## Flujo
 
-1. Elegir autobús y confirmar kilometraje de demostración.
+1. Elegir unidad (Autobús o Sprinter) y confirmar kilometraje registrado.
 2. Indicar prioridad y motivo; programación opcional. La clasificación se deriva de los servicios agregados.
 3. Agregar uno o varios servicios del catálogo ficticio.
 4. Asignar responsable por servicio o dejar por asignar; ajustar instrucciones y horas.
@@ -29,7 +29,7 @@ La interfaz puede manejarse con teclado y se adapta a pantalla estrecha. Los di�
 - No se obliga a checklist de taller para crear la orden.
 - No se confunde crear con liberar o autorizar circulación.
 - Los materiales son estimaciones: no representan entrega, consumo ni movimientos de inventario.
-- Una orden necesita autobús, motivo, odómetro entero no negativo y al menos un servicio. Horas y cantidades deben ser positivas.
+- Una orden necesita unidad, observaciones según el flujo, odómetro entero no negativo y al menos un servicio. Horas y cantidades deben ser positivas. Autobús y Sprinter usan las mismas reglas.
 
 Las asignaciones pueden quedar pendientes porque se completarán antes de liberar. Esta decisión de interfaz debe validarse con el cliente. La programación no es obligatoria en este prototipo.
 

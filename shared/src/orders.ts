@@ -266,6 +266,8 @@ export function finishOrder(
     input.odometer < 0
   )
     throw new Error("Revisa la fecha de ejecución y el odómetro.");
+  if (input.odometer < Number(order.form.odometer))
+    throw new Error(`El odómetro al terminar no puede ser menor al de apertura de esta orden (${order.form.odometer} km).`);
   if (
     input.performedServiceIds.some(
       (serviceId) =>

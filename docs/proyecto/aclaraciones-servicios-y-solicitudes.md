@@ -26,7 +26,7 @@ Los puntos que se verifican en cada revisión se definirán después. No se crea
 
 ## 3. Flujo solicitado y aclarado
 
-1. El usuario chofer reporta una **solicitud de servicio** asociada a un autobús.
+1. El usuario chofer reporta una **solicitud de servicio** asociada a una unidad (Autobús o Sprinter de pasajeros).
 2. El mecánico principal revisa el reporte.
 3. Puede **crear una orden de mantenimiento vinculada** a esa solicitud, o rechazarla.
 

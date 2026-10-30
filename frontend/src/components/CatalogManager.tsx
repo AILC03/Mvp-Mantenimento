@@ -9,11 +9,11 @@ import {
   Plus,
   Search,
   Trash2,
-  Truck,
   Wrench,
 } from "lucide-react";
 import {
   currency,
+  vehicleTypeLabel,
   type CatalogService,
   type Product,
   type Vehicle,
@@ -47,7 +47,7 @@ const today = () => {
 };
 const titles = {
   materials: "Artículos de almacén",
-  vehicles: "Autobuses y camiones",
+  vehicles: "Unidades",
   services: "Tipos de servicio",
   reviews: "Tipos de revisión",
 };
@@ -130,7 +130,7 @@ export function CatalogManager({
               {section === "materials"
                 ? "Sin categorías por ahora. Artículos medidos en piezas o litros."
                 : section === "vehicles"
-                  ? "Una ficha por unidad, diferenciando autobús y camión."
+                  ? "Una ficha por unidad: Autobús o Sprinter de pasajeros."
                   : section === "services"
                     ? "CAF es el único preventivo. Define instrucciones y materiales necesarios."
                     : "Define la periodicidad y escribe los aspectos que se van a evaluar."}
@@ -164,7 +164,7 @@ export function CatalogManager({
             >
               <option value="all">Todas las unidades</option>
               <option value="bus">Autobuses</option>
-              <option value="truck">Camiones</option>
+              <option value="truck">Sprinter</option>
             </select>
           )}
         </div>
@@ -244,15 +244,11 @@ export function CatalogManager({
               .map((vehicle) => (
                 <article className="catalog-record" key={vehicle.id}>
                   <span className="service-icon">
-                    {vehicle.type === "bus" ? (
-                      <BusFront size={23} />
-                    ) : (
-                      <Truck size={23} />
-                    )}
+                    <BusFront size={23} />
                   </span>
                   <div className="catalog-record-info">
                     <small>
-                      {vehicle.type === "bus" ? "AUTOBÚS" : "CAMIÓN"} ·{" "}
+                      {vehicleTypeLabel(vehicle.type).toLocaleUpperCase("es")} ·{" "}
                       {vehicle.plate || "Sin placas capturadas"}
                     </small>
                     <h3>
@@ -771,8 +767,8 @@ function VehicleEditor({
   return (
     <form onSubmit={submit}>
       <p className="modal-description">
-        Autobuses y camiones son distintos. Número económico, placas y VIN no
-        deben duplicarse entre unidades.
+        Autobús y Sprinter son unidades de pasajeros. Número económico, placas y
+        VIN no deben duplicarse entre unidades.
       </p>
       <FormError message={error} />
       <div className="field-grid">
@@ -780,7 +776,7 @@ function VehicleEditor({
           Tipo de unidad *
           <select name="type" defaultValue={vehicle?.type ?? "bus"}>
             <option value="bus">Autobús</option>
-            <option value="truck">Camión</option>
+            <option value="truck">Sprinter</option>
           </select>
         </label>
         <label className="field">
@@ -1043,8 +1039,7 @@ function ServiceEditor({
                 )
               }
             />
-            {vehicle.fleetNumber} ·{" "}
-            {vehicle.type === "bus" ? "Autobús" : "Camión"}
+            {vehicle.fleetNumber} · {vehicleTypeLabel(vehicle.type)}
           </label>
         ))}
       </div>

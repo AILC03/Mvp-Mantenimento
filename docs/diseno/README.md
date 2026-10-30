@@ -7,10 +7,10 @@ Espacio para flujos, prototipos y formatos de referencia autorizados por el clie
 - Checklist físico actual: carrocería, herramientas, equipamiento y limpieza; no asumir que es un reporte de fallas mecánicas.
 - Requisición física de materiales.
 - Ejemplo de orden de trabajo.
-- Catálogo de partes del autobús y elementos de inspección.
+- Catálogo de partes de la unidad y elementos de inspección.
 
 ## Primer circuito a diseñar
 
-Selección de autobús → consulta de incidencias conocidas → checklist pre-viaje → checklist post-viaje → revisión del mecánico → cierre del caso, con incidencias independientes cuando corresponda.
+Selección de unidad (Autobús o Sprinter) → consulta de incidencias conocidas → checklist pre-viaje → checklist post-viaje → revisión del mecánico → cierre del caso, con incidencias independientes cuando corresponda.
 
 No atribuir automáticamente al operador la responsabilidad de causar un daño.
