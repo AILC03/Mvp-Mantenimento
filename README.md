@@ -2,6 +2,8 @@
 
 Plataforma para gestionar unidades, inspecciones de viaje, incidencias, mantenimiento y materiales de Real Ejecutivo.
 
+**Ampliación local del 07/11/2026:** [últimos cambios: decisiones, implementación y comprobaciones](docs/proyecto/ultimos-cambios-mvp-2026-11-07.md). Reporte directo de chofer, catálogos de taller, correctivos libres, inventario por unidad, VIN, circulación y correcciones auditadas. **83 pruebas frontend, 43 unitarias backend y 26 HTTP/PostgreSQL aprobadas.** No desplegado.
+
 **Estado al 30/10/2026:** MVP integrado, con el alcance solicitado el 28/10 y la clasificación Autobús/Sprinter; **no listo para producción**. Catálogos, solicitudes, órdenes, almacén, revisiones, historial, CAF, servicios externos, circulación y borradores privados se guardan en PostgreSQL mediante una API autenticada. La operación no depende de localStorage ni sessionStorage.
 
 **Unidades de pasajeros:** las categorías son **Autobús** y **Sprinter**. Ambas pueden realizar todos los flujos, incluidos pre/post y circulación. Las claves heredadas `truck`/`TRUCK` ahora significan Sprinter, no carga: no cambian IDs ni relaciones, ni se crean unidades nuevas. Se mantiene un caso abierto por unidad. Ver [aclaración, compatibilidad y pruebas del 30/10](docs/proyecto/unidades-sprinter-2026-10-30.md).
@@ -33,8 +35,8 @@ docs/
 - Solicitud del chofer → revisión del mecánico → orden vinculada o rechazo con motivo.
 - Ejecución, pausas y cierre de órdenes sin liberación adicional. Para finalizar se requiere entrega neta positiva de cada material; las órdenes sin materiales no requieren entrega.
 - Entradas con costo histórico, entregas/devoluciones y existencias transaccionales. Piezas enteras y litros en pasos de 0.5 para cantidades previstas.
-- CAF cada 15,000 km, revisión general cada 45 días y emergencia cada 90 días. El vencimiento avisa, no bloquea.
-- Historial filtrable, incidencias/reparaciones y revisión pre/post de viaje con cierre único del caso. Cerrar un caso u orden no autoriza circulación.
+- CAF cada 15,000 km, revisión general cada 30 días y emergencia cada 90 días. El vencimiento avisa, no bloquea.
+- Historial filtrable e imprimible, golpes/fallas/reparaciones y revisión pre/post con inventario por unidad. Cerrar un viaje no autoriza circulación; al finalizar una orden se registra una decisión explícita y otra orden en curso impide autorizar.
 - Borradores privados por usuario en PostgreSQL; los formularios aún no guardados viven solo en memoria.
 - Consulta de incidencias activas/resueltas en ventana emergente desde pre/post, sin perder la captura ni exponer el expediente al chofer. Al iniciar un viaje se actualiza el catálogo de unidades desde la API, con carga/error/reintento, incluyendo Autobús y Sprinter.
 - Orden física imprimible para eléctrico/carrocero, además de la requisición existente; sin cuentas de técnicos.

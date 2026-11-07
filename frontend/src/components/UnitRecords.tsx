@@ -7,12 +7,15 @@ import {
   addExternalService,
   decideCirculation,
   latestCirculation,
+  circulationState,
   circulationLabels,
   type CirculationStatus,
   type ExternalServiceInput,
 } from "../unit-records";
 import type { CommitWorkbench } from "./OrdersView";
 import { Modal } from "./Modal";
+import { loadCatalogs, persistCatalogs, saveProvider } from "../catalogs";
+import { track } from "../operations-client";
 
 export function UnitRecords({
   vehicle,
@@ -28,7 +31,11 @@ export function UnitRecords({
   const [dialog, setDialog] = useState<"external" | "circulation" | null>(null);
   const [status, setStatus] = useState<CirculationStatus>("unevaluated");
   const [error, setError] = useState("");
+  const [provider, setProvider] = useState("");
+  const [quickProvider, setQuickProvider] = useState(false);
+  const [providerError, setProviderError] = useState("");
   const latest = latestCirculation(data, vehicle.id);
+  const circulation = circulationState(data, vehicle.id);
   async function commit(
     change: (data: Workbench) => Workbench,
     message: string,
@@ -41,34 +48,45 @@ export function UnitRecords({
       setError(e instanceof Error ? e.message : "No se pudo guardar.");
     }
   }
-  if (!managesOrders(user)) return null;
+  if (!managesOrders(user) && user.role !== "DRIVER") return null;
   return (
     <section
       className="unit-records"
       aria-label="Servicios externos y circulación"
     >
-      <h3>Circulación: {circulationLabels[latest?.status ?? "unevaluated"]}</h3>
-      {latest && (
-        <p>
-          {latest.actorName} ·{" "}
-          {new Date(latest.recordedAt).toLocaleString("es-MX")}
-        </p>
+      {managesOrders(user) && (
+        <>
+          <h3>Circulación: {circulationLabels[circulation.effective]}</h3>
+          {circulation.blockingOrder && (
+            <p>
+              Bloqueada por orden en curso: {circulation.blockingOrder.number}.
+            </p>
+          )}
+          {latest && (
+            <p>
+              {latest.actorName} ·{" "}
+              {new Date(latest.recordedAt).toLocaleString("es-MX")}
+            </p>
+          )}
+          <p>
+            Una orden en curso bloquea circulación. Al terminar se registra la
+            decisión explícita.
+          </p>
+        </>
       )}
-      <p>
-        Solo cambia al guardar una decisión explícita. Terminar trabajos no
-        autoriza circulación.
-      </p>
       <div className="order-actions">
-        <button
-          className="button secondary"
-          onClick={() => {
-            setStatus(latest?.status ?? "unevaluated");
-            setError("");
-            setDialog("circulation");
-          }}
-        >
-          Decidir circulación
-        </button>
+        {managesOrders(user) && (
+          <button
+            className="button secondary"
+            onClick={() => {
+              setStatus(latest?.status ?? "unevaluated");
+              setError("");
+              setDialog("circulation");
+            }}
+          >
+            Decidir circulación
+          </button>
+        )}
         <button
           className="button secondary"
           onClick={() => {
@@ -158,7 +176,7 @@ export function UnitRecords({
           >
             <p>
               No requiere orden ni checklist. No descuenta almacén, resuelve
-              incidencias ni cambia circulación. Moneda: MXN.
+              fallas ni cambia circulación. Moneda: MXN.
             </p>
             {error && (
               <p role="alert" className="notice error">
@@ -189,8 +207,32 @@ export function UnitRecords({
               </label>
               <label className="field full">
                 Prestador (empresa/persona)
-                <input name="provider" required maxLength={150} />
+                <input
+                  name="provider"
+                  list="service-providers"
+                  required
+                  maxLength={150}
+                  value={provider}
+                  onChange={(e) => setProvider(e.target.value)}
+                />
+                <datalist id="service-providers">
+                  {loadCatalogs()
+                    .providers.filter((p) => p.kind !== "material")
+                    .map((p) => (
+                      <option key={p.id} value={p.name} />
+                    ))}
+                </datalist>
               </label>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => {
+                  setProviderError("");
+                  setQuickProvider(true);
+                }}
+              >
+                Alta rápida de prestador
+              </button>
               <label className="field">
                 Costo de materiales (MXN)
                 <input
@@ -212,7 +254,6 @@ export function UnitRecords({
                   min="0"
                   max="1000000000"
                   step="0.01"
-                  defaultValue="0"
                 />
               </label>
               <label className="field full">
@@ -239,6 +280,58 @@ export function UnitRecords({
           </form>
         </Modal>
       )}
+      {quickProvider && (
+        <Modal
+          title="Alta rápida de prestador"
+          onClose={() => setQuickProvider(false)}
+        >
+          <form
+            onSubmit={async (event) => {
+              event.preventDefault();
+              const fields = new FormData(event.currentTarget);
+              const input = {
+                name: String(fields.get("name") ?? ""),
+                contact: "",
+                phone: "",
+                kind: "service" as const,
+              };
+              try {
+                const current = loadCatalogs();
+                const providers = saveProvider(current, input);
+                await persistCatalogs(
+                  track(
+                    { ...current, providers },
+                    {
+                      type: "provider.save",
+                      input,
+                      clientId: providers.at(-1)!.id,
+                    },
+                  ),
+                );
+                setProvider(input.name.trim());
+                setQuickProvider(false);
+              } catch (e) {
+                setProviderError(
+                  e instanceof Error
+                    ? e.message
+                    : "No se pudo guardar el prestador.",
+                );
+              }
+            }}
+          >
+            {providerError && (
+              <p role="alert" className="notice error">
+                {providerError}
+              </p>
+            )}
+            <label className="field">
+              Nombre del prestador
+              <input name="name" required maxLength={150} />
+            </label>
+            <button className="button primary">Guardar prestador</button>
+          </form>
+        </Modal>
+      )}
     </section>
   );
 }
@@ -253,8 +346,7 @@ export function CirculationSummary({
   const [photo, setPhoto] = useState(false);
   const groups = (["unauthorized", "unevaluated"] as const).map((status) => {
     const buses = vehicles.filter(
-      (v) =>
-        (latestCirculation(data, v.id)?.status ?? "unevaluated") === status,
+      (v) => circulationState(data, v.id).effective === status,
     );
     return (
       <section key={status}>

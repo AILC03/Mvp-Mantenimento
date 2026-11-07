@@ -94,19 +94,22 @@ describe('Ampliaciones acotadas de unidades en JSONB', () => {
       actorId: mechanic.id,
       busId: id,
     });
-    const zero = applyCommand(
-      next,
-      admin,
-      {
-        type: 'external.record',
-        vehicleId: id,
-        input: { ...input, materialsCost: 0, laborCost: 0 },
-      },
-      2,
-    );
-    expect(loadWorkbench(JSON.stringify(zero.workbench))).toEqual(
-      zero.workbench,
-    );
+    const historical = structuredClone(next.workbench);
+    historical.externalServices![0].laborCost = 0;
+    historical.externalServices![0].materialsCost = 0;
+    expect(loadWorkbench(JSON.stringify(historical))).toEqual(historical);
+    expect(() =>
+      applyCommand(
+        next,
+        admin,
+        {
+          type: 'external.record',
+          vehicleId: id,
+          input: { ...input, laborCost: 0 },
+        },
+        2,
+      ),
+    ).not.toThrow();
     expect(state.workbench.externalServices).toBeUndefined();
   });
   it.each([
@@ -131,7 +134,7 @@ describe('Ampliaciones acotadas de unidades en JSONB', () => {
       ),
     ).toThrow();
   });
-  it.each(['DRIVER', 'WAREHOUSE_CLERK', 'TECHNICIAN'] as const)(
+  it.each(['WAREHOUSE_CLERK', 'TECHNICIAN'] as const)(
     'rechaza mutaciones del perfil %s',
     (role) => {
       const state = initial(),

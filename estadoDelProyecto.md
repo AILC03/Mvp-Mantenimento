@@ -1,7 +1,9 @@
 # Real Ejecutivo — Estado del proyecto
 
-**Actualización:** 30 de octubre de 2026.
+**Actualización:** 7 de noviembre de 2026.
 **Estado general:** MVP en desarrollo. Autenticación y flujos operativos conectados a backend/PostgreSQL, sin persistencia operativa en localStorage. **No está listo para producción.**
+
+**Trabajo local vigente:** ampliación en `feat/ultimos-cambios-mvp`, sin commit/push/despliegue. Ver [alcance aprobado, cambios y resultados concretos](docs/proyecto/ultimos-cambios-mvp-2026-11-07.md). 83 pruebas frontend, 43 unitarias backend y 26 HTTP/PostgreSQL aprobadas; revisión Chrome escritorio/móvil con API simulada y Storage bloqueado. El bloqueo inicial de Docker quedó resuelto y la suite se ejecutó en su base temporal aislada, sin modificar la operativa. Las reglas de 30 días, reporte directo del chofer y bloqueo por orden en curso sustituyen las menciones históricas incompatibles siguientes.
 
 **Aclaración vigente del 30/10:** las unidades anteriormente denominadas de otra manera bajo `truck`/`TRUCK` son **Sprinter de pasajeros**. Ambas categorías (Autobús y Sprinter) aparecen en todos los selectores y participan en viajes, mantenimiento y circulación. Eliminada la exclusión de Sprinter en frontend y regla compartida del servidor; se conservan claves, IDs, historial y vínculos sin migración ni escrituras de reclasificación. Ver [detalle y verificación](docs/proyecto/unidades-sprinter-2026-10-30.md).
 

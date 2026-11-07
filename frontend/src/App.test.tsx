@@ -10,6 +10,7 @@ import {
   type OrderService,
 } from "./data";
 import { WORKBENCH_KEY } from "./requests";
+import { defaultCatalogs } from "./catalogs";
 
 async function openOrderEditor() {
   render(<App />);
@@ -48,6 +49,20 @@ test("shows validation without creating an order", async () => {
 
 test("creates a demo order with a service and estimated materials", async () => {
   const user = userEvent.setup();
+  localStorage.setItem(
+    "real-ejecutivo.demo.catalogs.v1",
+    JSON.stringify({
+      ...defaultCatalogs(),
+      employees: [
+        {
+          id: "employee-test",
+          name: "Carlos Méndez",
+          position: "Mecánico",
+          phone: "",
+        },
+      ],
+    }),
+  );
   await openOrderEditor();
   await user.selectOptions(screen.getByLabelText(/^Unidad/), "BUS015");
   await user.type(
@@ -61,7 +76,7 @@ test("creates a demo order with a service and estimated materials", async () => 
     screen.getByRole("button", { name: /Cambio de aceite y filtro/ }),
   );
   await user.selectOptions(
-    screen.getByLabelText(/^Responsable/),
+    screen.getByLabelText("Responsable"),
     "Carlos Méndez · Mecánico",
   );
   await user.click(screen.getByRole("button", { name: /^Crear orden/ }));

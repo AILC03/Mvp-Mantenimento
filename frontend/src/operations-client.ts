@@ -113,6 +113,9 @@ export function stopOperations() {
     products: [],
     services: [],
     reviews: [],
+    employees: [],
+    providers: [],
+    vehicleParts: [],
   });
   persistWorkbench({ orders: [], requests: [] });
   persistTripCases([]);

@@ -18,16 +18,16 @@ test("consulta vacía y error de red explícitos, sin simular guardado", async (
     .mockRejectedValueOnce(new TypeError("Sin red"));
   render(<TripIncidents tripId="own-trip" />);
   await user.click(
-    screen.getByRole("button", { name: "Ver incidencias de la unidad" }),
+    screen.getByRole("button", { name: "Ver fallas de la unidad" }),
   );
   expect(
-    await screen.findByText("Sin incidencias activas en esta unidad."),
+    await screen.findByText("Sin fallas activas en esta unidad."),
   ).toBeInTheDocument();
   await user.click(
-    screen.getByRole("button", { name: "Cerrar consulta de incidencias" }),
+    screen.getByRole("button", { name: "Cerrar consulta de fallas" }),
   );
   await user.click(
-    screen.getByRole("button", { name: "Ver incidencias de la unidad" }),
+    screen.getByRole("button", { name: "Ver fallas de la unidad" }),
   );
   expect(await screen.findByRole("alert")).toHaveTextContent("Sin red");
 });
@@ -58,6 +58,7 @@ test("fallo de guardado externo conserva campos y no anuncia éxito", async () =
     screen.getByLabelText("Prestador (empresa/persona)"),
     "Prestador",
   );
+  await user.type(screen.getByLabelText("Costo de mano de obra (MXN)"), "100");
   await user.click(
     screen.getByRole("button", { name: "Guardar servicio externo" }),
   );
@@ -134,11 +135,11 @@ test.each(["pre", "post"] as const)(
       "Mi captura pendiente",
     );
     await user.click(
-      screen.getByRole("button", { name: "Ver incidencias de la unidad" }),
+      screen.getByRole("button", { name: "Ver fallas de la unidad" }),
     );
     expect(await screen.findByText("Puerta dañada")).toBeInTheDocument();
     const consultation = screen.getByRole("dialog", {
-      name: "Incidencias de la unidad",
+      name: "Fallas de la unidad",
     });
     expect(consultation.closest("form")).toBeNull();
     expect(screen.queryByText("Freno reparado")).not.toBeInTheDocument();
@@ -149,10 +150,10 @@ test.each(["pre", "post"] as const)(
     ).not.toBeInTheDocument();
     expect(screen.getAllByRole("radio")).toHaveLength(2);
     await user.click(
-      screen.getByRole("button", { name: "Cerrar consulta de incidencias" }),
+      screen.getByRole("button", { name: "Cerrar consulta de fallas" }),
     );
     expect(
-      screen.queryByRole("dialog", { name: "Incidencias de la unidad" }),
+      screen.queryByRole("dialog", { name: "Fallas de la unidad" }),
     ).not.toBeInTheDocument();
     expect(screen.getByLabelText("Observaciones de la revisión")).toHaveValue(
       "Mi captura pendiente",
@@ -230,7 +231,7 @@ test("registro externo y decisiones persisten al remontar, historial aislado y c
   expect(
     screen.getByRole("heading", { name: "Circulación: No autorizado" }),
   ).toBeInTheDocument();
-  expect(screen.getByText(/Total:.*15.25/)).toBeInTheDocument();
+  expect(screen.getAllByText(/Total:.*15.25/)).toHaveLength(2); // Vista y copia imprimible.
   expect(loadWorkbench().circulationDecisions).toHaveLength(2);
   await user.click(screen.getByRole("button", { name: "Volver a unidades" }));
   await user.click(

@@ -20,6 +20,10 @@ import {
   availableStock,
   fleetRecords,
   vehicleIncidents,
+  normalizeCatalogs,
+  saveEmployee,
+  saveProvider,
+  saveVehiclePart,
   type AuthUser,
   type OperationsState,
   type IncidentSummary,
@@ -55,7 +59,10 @@ export class OperationsService {
     }));
     return this.prisma.operationState.upsert({
       where: { id: 1 },
-      create: { id: 1, data: json(state) },
+      create: {
+        id: 1,
+        data: json({ ...state, catalogs: normalizeCatalogs(state.catalogs) }),
+      },
       update: {},
     });
   }
@@ -63,11 +70,35 @@ export class OperationsService {
   async snapshot(user: AuthUser) {
     const row = await this.initialize();
     const state = structuredClone(row.data) as unknown as OperationsState;
+    state.catalogs = normalizeCatalogs(state.catalogs);
     if (user.role === 'DRIVER') {
-      state.catalogs.products = [];
+      const inventoryIds = new Set(
+        (state.workbench.unitInventories ?? []).flatMap((i) =>
+          i.items.map((r) => r.productId),
+        ),
+      );
+      state.catalogs.products = state.catalogs.products
+        .filter((p) => inventoryIds.has(p.id))
+        .map((p) => ({
+          ...p,
+          cost: 0,
+          entries: [],
+          minStock: null,
+          maxStock: null,
+        }));
       state.catalogs.services = [];
+      state.catalogs.employees = [];
+      state.catalogs.vehicleParts = [];
+      state.catalogs.providers = state.catalogs.providers
+        .filter((p) => p.kind !== 'material')
+        .map((p) => ({ ...p, contact: '', phone: '' }));
+      const inventories = state.workbench.unitInventories?.map((i) => ({
+        ...i,
+        movements: [],
+      }));
       state.workbench = {
         orders: [],
+        ...(inventories === undefined ? {} : { unitInventories: inventories }),
         requests: state.workbench.requests
           .filter((r) => r.driverId === user.id)
           .map((r) =>
@@ -236,6 +267,9 @@ export class OperationsService {
             products: z.array(z.unknown()).max(5000),
             services: z.array(z.unknown()).max(5000),
             reviews: z.array(z.unknown()).max(5000),
+            employees: z.array(z.unknown()).max(5000).optional(),
+            providers: z.array(z.unknown()).max(5000).optional(),
+            vehicleParts: z.array(z.unknown()).max(5000).optional(),
           })
           .strict(),
         workbench: z
@@ -245,6 +279,7 @@ export class OperationsService {
             fleet: z.unknown().optional(),
             externalServices: z.array(z.unknown()).max(10000).optional(),
             circulationDecisions: z.array(z.unknown()).max(10000).optional(),
+            unitInventories: z.array(z.unknown()).max(5000).optional(),
           })
           .strict(),
         trips: z.array(z.unknown()).max(10000),
@@ -324,6 +359,12 @@ export class OperationsService {
     unique(state.catalogs.products.map((p) => p.sku));
     unique(state.catalogs.services.map((s) => s.name));
     unique(state.catalogs.reviews.map((r) => r.name));
+    for (const e of state.catalogs.employees)
+      saveEmployee(state.catalogs, e, e.id);
+    for (const p of state.catalogs.providers)
+      saveProvider(state.catalogs, p, p.id);
+    for (const p of state.catalogs.vehicleParts)
+      saveVehiclePart(state.catalogs, p, p.id);
     for (const v of state.catalogs.vehicles)
       saveVehicle(state.catalogs, v, v.id);
     for (const p of state.catalogs.products) {
@@ -353,12 +394,22 @@ export class OperationsService {
     };
     const vehicles = ids(state.catalogs.vehicles);
     const products = ids(state.catalogs.products);
+    for (const inventory of state.workbench.unitInventories ?? []) {
+      if (
+        !vehicles.has(inventory.busId) ||
+        inventory.items.some((r) => !products.has(r.productId))
+      )
+        throw new Error(
+          'El inventario por unidad contiene referencias inexistentes.',
+        );
+    }
     const fleet = fleetRecords(state.workbench);
     for (const list of [
       fleet.reviewJobs,
       fleet.damages,
       fleet.resolutions,
       fleet.cafCorrections,
+      fleet.pastRepairs ?? [],
       state.workbench.externalServices ?? [],
       state.workbench.circulationDecisions ?? [],
     ]) {
@@ -390,6 +441,9 @@ export class OperationsService {
         'Hay reparaciones sin una incidencia u orden compatible.',
       );
     ids(state.catalogs.services);
+    const employees = ids(state.catalogs.employees);
+    const providers = ids(state.catalogs.providers);
+    const parts = ids(state.catalogs.vehicleParts);
     ids(state.catalogs.reviews);
     ids(state.workbench.requests);
     ids(state.workbench.orders);
@@ -401,11 +455,35 @@ export class OperationsService {
     ])
       if (!vehicles.has(record.busId))
         throw new Error('Hay registros de una unidad inexistente.');
-    for (const order of state.workbench.orders)
+    for (const order of state.workbench.orders) {
+      const responsible = order.form.responsible;
+      if (
+        responsible &&
+        !(responsible.kind === 'taller' ? employees : providers).has(
+          responsible.refId,
+        )
+      )
+        throw new Error('Hay órdenes con responsables inexistentes.');
+      if (order.form.partMaterials?.some((p) => !parts.has(p.partId)))
+        throw new Error('Hay órdenes con piezas inexistentes.');
+      if (
+        order.form.sourceIncidentId &&
+        !vehicleIncidents(order.form.busId, state.workbench, state.trips).some(
+          (i) => i.sourceId === order.form.sourceIncidentId,
+        )
+      )
+        throw new Error('Hay órdenes con fallas de origen incompatibles.');
       for (const service of order.form.services)
         for (const m of service.materials)
           if (!products.has(m.productId))
             throw new Error('Hay órdenes con artículos inexistentes.');
+    }
+    for (const trip of state.trips)
+      for (const inspection of [trip.pre, trip.post])
+        if (inspection?.inventory?.some((row) => !products.has(row.productId)))
+          throw new Error(
+            'Hay inspecciones con artículos de inventario inexistentes.',
+          );
     for (const request of state.workbench.requests)
       if (
         request.status === 'converted' &&

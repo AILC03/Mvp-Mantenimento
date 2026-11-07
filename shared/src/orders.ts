@@ -1,6 +1,7 @@
 import type { AuthUser } from "./auth";
 import type { Product, SavedOrder } from "./data";
 import type { Workbench } from "./requests";
+import { decideCirculation } from "./unit-records";
 
 export const managesOrders = (user: AuthUser) =>
   user.role === "ADMIN" || user.role === "LEAD_MECHANIC";
@@ -124,6 +125,7 @@ export function validOrderMetadata(order: SavedOrder): boolean {
             "Pausada",
             "Reanudada",
             "Finalizada",
+            "Ajuste de materiales",
           ].includes(event.action),
       ))
   )
@@ -156,7 +158,10 @@ export function validOrderMetadata(order: SavedOrder): boolean {
             !line ||
             ![line.productId, line.name, line.sku].every(text) ||
             !["pza", "L"].includes(line.unit) ||
-            ![line.delivered, line.returned, line.unitCost].every(number) ||
+            !number(line.unitCost) ||
+            ![line.delivered, line.returned].every(
+              (v) => typeof v === "number" && Number.isFinite(v),
+            ) ||
             (line.unit === "pza" &&
               (!Number.isInteger(line.delivered) ||
                 !Number.isInteger(line.returned))),
@@ -165,7 +170,12 @@ export function validOrderMetadata(order: SavedOrder): boolean {
         return false;
     }
     if (
-      orderMaterials(order).some((row) => row.returned > row.delivered + 1e-6)
+      orderMaterials(order).some(
+        (row) =>
+          row.delivered < 0 ||
+          row.returned < 0 ||
+          row.returned > row.delivered + 1e-6,
+      )
     )
       return false;
   }
@@ -249,6 +259,7 @@ export function finishOrder(
     performedServiceIds: string[];
     unperformedReasons: Record<string, string>;
     notes: string;
+    authorizeCirculation?: boolean;
   },
 ): Workbench {
   if (!managesOrders(user))
@@ -267,7 +278,9 @@ export function finishOrder(
   )
     throw new Error("Revisa la fecha de ejecución y el odómetro.");
   if (input.odometer < Number(order.form.odometer))
-    throw new Error(`El odómetro al terminar no puede ser menor al de apertura de esta orden (${order.form.odometer} km).`);
+    throw new Error(
+      `El odómetro al terminar no puede ser menor al de apertura de esta orden (${order.form.odometer} km).`,
+    );
   if (
     input.performedServiceIds.some(
       (serviceId) =>
@@ -293,7 +306,7 @@ export function finishOrder(
     actorName: user.name,
     recordedAt,
   };
-  return {
+  const next: Workbench = {
     ...data,
     orders: data.orders.map((item) =>
       item.id === id
@@ -316,6 +329,12 @@ export function finishOrder(
         : item,
     ),
   };
+  return decideCirculation(
+    next,
+    user,
+    order.form.busId,
+    input.authorizeCirculation === true ? "authorized" : "unauthorized",
+  );
 }
 
 export function confirmMaterials(
@@ -353,14 +372,14 @@ export function confirmMaterials(
         throw new Error(
           "Usa cantidades no negativas; las piezas deben ser enteras.",
         );
+      if (row.returned > row.delivered)
+        throw new Error("No puedes devolver más de lo entregado.");
       if (
-        row.delivered < previous.delivered ||
-        row.returned < previous.returned ||
-        row.returned > row.delivered
+        (row.delivered < previous.delivered ||
+          row.returned < previous.returned) &&
+        !notes.trim()
       )
-        throw new Error(
-          "Las cantidades son acumuladas: no pueden disminuir, ni devolver más de lo entregado.",
-        );
+        throw new Error("Explica el motivo de la corrección a la baja.");
       const delivered = row.delivered - previous.delivered;
       const returned = row.returned - previous.returned;
       if (delivered - returned > availableStock(product, data.orders) + 1e-6)
@@ -399,6 +418,21 @@ export function confirmMaterials(
       item.id === id
         ? {
             ...item,
+            events: lines.some(
+              (line) => line.delivered < 0 || line.returned < 0,
+            )
+              ? [
+                  ...(item.events ?? []),
+                  {
+                    id: crypto.randomUUID(),
+                    at: confirmation.at,
+                    actorId: user.id,
+                    actorName: user.name,
+                    action: "Ajuste de materiales",
+                    notes: notes.trim(),
+                  },
+                ]
+              : item.events,
             materialConfirmations: [
               ...(item.materialConfirmations ?? []),
               confirmation,

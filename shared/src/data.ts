@@ -23,7 +23,46 @@ export type Product = {
   description: string;
   unit: "L" | "pza";
   cost: number;
+  // Opcional para registros previos; null = sin mínimo/máximo configurado.
+  minStock?: number | null;
+  maxStock?: number | null;
   entries: StockEntry[];
+};
+// Catálogos ampliados (empleados, proveedores y piezas con número de parte).
+export type Employee = {
+  id: string;
+  name: string;
+  position: string;
+  phone: string;
+  active?: boolean;
+};
+export type Provider = {
+  id: string;
+  name: string;
+  contact: string;
+  phone: string;
+  kind?: "service" | "material" | "both";
+};
+export type VehiclePart = {
+  id: string;
+  partNumber: string;
+  name: string;
+  note: string;
+  // Compatibilidad con una o más unidades del catálogo.
+  compatibleVehicleIds: string[];
+};
+// Pieza solicitada en una orden: no descuenta almacén ni exige existencias.
+export type PartMaterial = {
+  id: string;
+  partId: string;
+  partNumber: string;
+  name: string;
+  quantity: number;
+};
+export type ResponsibleRef = {
+  kind: "taller" | "externo";
+  refId: string;
+  name: string;
 };
 export type StockEntry = {
   id: string;
@@ -197,11 +236,16 @@ export type OrderService = {
 export type OrderForm = {
   busId: string;
   sourceRequestId?: string;
+  sourceIncidentId?: string;
   priority: "Normal" | "Alta" | "Urgente";
   reason: string;
   scheduledDate: string;
   odometer: string;
   services: OrderService[];
+  // Opcionales para órdenes previas a esta ampliación.
+  responsible?: ResponsibleRef | null;
+  estimatedEndDate?: string;
+  partMaterials?: PartMaterial[];
 };
 export type OrderStatus =
   | "Pendiente de liberación"
@@ -214,7 +258,13 @@ export type OrderEvent = {
   at: string;
   actorId: string;
   actorName: string;
-  action: "Creada" | "Iniciada" | "Pausada" | "Reanudada" | "Finalizada";
+  action:
+    | "Creada"
+    | "Iniciada"
+    | "Pausada"
+    | "Reanudada"
+    | "Finalizada"
+    | "Ajuste de materiales";
   notes: string;
 };
 export type MaterialConfirmation = {
@@ -259,6 +309,7 @@ export const emptyForm = (): OrderForm => ({
   priority: "Normal",
   reason: "",
   scheduledDate: "",
+  estimatedEndDate: new Date().toLocaleDateString("en-CA"),
   odometer: "",
   services: [],
 });
@@ -266,6 +317,32 @@ export const emptyForm = (): OrderForm => ({
 export function isOrderForm(value: unknown): value is OrderForm {
   if (!value || typeof value !== "object") return false;
   const form = value as Record<string, unknown>;
+  const responsible = form.responsible;
+  const validResponsible =
+    responsible === undefined ||
+    responsible === null ||
+    (typeof responsible === "object" &&
+      ["taller", "externo"].includes(
+        String((responsible as Record<string, unknown>).kind),
+      ) &&
+      typeof (responsible as Record<string, unknown>).refId === "string" &&
+      typeof (responsible as Record<string, unknown>).name === "string");
+  const validParts =
+    form.partMaterials === undefined ||
+    (Array.isArray(form.partMaterials) &&
+      form.partMaterials.every((part: unknown) => {
+        if (!part || typeof part !== "object") return false;
+        const row = part as Record<string, unknown>;
+        return (
+          [row.id, row.partId, row.partNumber, row.name].every(
+            (field) => typeof field === "string" && field.length > 0,
+          ) &&
+          typeof row.quantity === "number" &&
+          Number.isFinite(row.quantity) &&
+          row.quantity > 0 &&
+          Number.isInteger(row.quantity)
+        );
+      }));
   return (
     typeof form.busId === "string" &&
     typeof form.reason === "string" &&
@@ -273,6 +350,12 @@ export function isOrderForm(value: unknown): value is OrderForm {
     typeof form.scheduledDate === "string" &&
     (form.sourceRequestId === undefined ||
       typeof form.sourceRequestId === "string") &&
+    (form.sourceIncidentId === undefined ||
+      typeof form.sourceIncidentId === "string") &&
+    (form.estimatedEndDate === undefined ||
+      typeof form.estimatedEndDate === "string") &&
+    validResponsible &&
+    validParts &&
     ["Normal", "Alta", "Urgente"].includes(String(form.priority)) &&
     Array.isArray(form.services) &&
     form.services.every((service: unknown) => {
@@ -309,6 +392,15 @@ export function isOrderForm(value: unknown): value is OrderForm {
   );
 }
 
+const realDate = (value: string) => {
+  const date = new Date(`${value}T12:00:00Z`);
+  return (
+    /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+    Number.isFinite(date.getTime()) &&
+    date.toISOString().slice(0, 10) === value
+  );
+};
+
 export function validateOrder(
   form: OrderForm,
   vehicles: Vehicle[] = buses,
@@ -335,6 +427,28 @@ export function validateOrder(
     )
   )
     errors.push("El tiempo estimado de cada servicio debe ser mayor a cero.");
+  // Servicios correctivos de texto libre: sin definición de catálogo.
+  if (
+    form.services.some(
+      (service) =>
+        service.catalogId === "" &&
+        (!service.name.trim() ||
+          service.name.trim().length > 150 ||
+          !service.category.trim() ||
+          service.category.trim().length > 150),
+    )
+  )
+    errors.push(
+      "Cada servicio correctivo de texto libre necesita nombre y categoría (máximo 150 caracteres).",
+    );
+  if (
+    form.services.some(
+      (s) =>
+        s.catalogId === "" &&
+        /\bCAF\b|CAMBIO\s+DE\s+ACEITE\s+Y\s+FILTRO/i.test(s.name),
+    )
+  )
+    errors.push("Para CAF utiliza el servicio preventivo del catálogo.");
   if (
     form.services.some((service) =>
       service.materials.some(
@@ -354,6 +468,7 @@ export function validateOrder(
     errors.push("Revisa los productos y cantidades de los materiales.");
   if (
     form.services.some((service) => {
+      if (service.catalogId === "") return false;
       const definition = services.find((item) => item.id === service.catalogId);
       return (
         !definition ||
@@ -364,6 +479,36 @@ export function validateOrder(
   )
     errors.push(
       "Revisa la compatibilidad de los servicios con la unidad seleccionada.",
+    );
+  if (form.estimatedEndDate === undefined || !form.estimatedEndDate.trim())
+    errors.push("Indica la fecha estimada de término del trabajo.");
+  else if (!realDate(form.estimatedEndDate))
+    errors.push("La fecha estimada de término no es una fecha válida.");
+  else if (
+    form.scheduledDate.trim() &&
+    realDate(form.scheduledDate) &&
+    form.estimatedEndDate < form.scheduledDate
+  )
+    errors.push(
+      "La fecha estimada de término no puede ser anterior a la fecha programada.",
+    );
+  if (form.responsible != null) {
+    if (!["taller", "externo"].includes(form.responsible.kind))
+      errors.push("Selecciona un responsable de taller o externo.");
+    if (!form.responsible.name.trim())
+      errors.push("Selecciona el responsable del trabajo.");
+  }
+  if (
+    form.partMaterials?.some(
+      (part) =>
+        !part.partId ||
+        !part.name.trim() ||
+        !Number.isInteger(part.quantity) ||
+        part.quantity <= 0,
+    )
+  )
+    errors.push(
+      "Revisa las piezas solicitadas: cantidad entera mayor a cero por pieza.",
     );
   return errors;
 }
@@ -382,7 +527,7 @@ export function maintenanceLabel(services: OrderService[]): string {
 }
 
 export const scheduledReviews = [
-  { name: "Revisión general", frequency: "Cada 45 días" },
+  { name: "Revisión general", frequency: "Cada 30 días" },
   { name: "Salidas de emergencia", frequency: "Cada 90 días" },
   { name: "Revisión anual", frequency: "Anual" },
   { name: "Revisión de viaje", frequency: "Cada viaje" },

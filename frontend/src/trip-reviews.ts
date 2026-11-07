@@ -20,9 +20,19 @@ export const submitTripInspection: typeof d.submitTripInspection = (
   answers,
   notes,
   template,
+  inventory,
 ) =>
   track(
-    d.submitTripInspection(cases, user, id, stage, answers, notes, template),
+    d.submitTripInspection(
+      cases,
+      user,
+      id,
+      stage,
+      answers,
+      notes,
+      template,
+      inventory,
+    ),
     {
       type: "trip.submit",
       id,
@@ -30,6 +40,7 @@ export const submitTripInspection: typeof d.submitTripInspection = (
       answers,
       notes,
       templateId: template?.id,
+      inventory,
     },
   );
 export const closeTripCase: typeof d.closeTripCase = (cases, user, id, notes) =>

@@ -1,5 +1,7 @@
 # Índice de documentación
 
+**Ampliación local vigente del 07/11/2026:** [últimos cambios del MVP: decisiones, implementación y verificaciones](proyecto/ultimos-cambios-mvp-2026-11-07.md). Sustituye las reglas anteriores incompatibles; 83 pruebas frontend, 43 unitarias backend y 26 HTTP/PostgreSQL aprobadas.
+
 **Aclaración vigente del 30/10/2026:** [unidades Autobús/Sprinter, compatibilidad de claves y verificación](proyecto/unidades-sprinter-2026-10-30.md). Sustituye las exclusiones anteriores de Sprinter de viajes o circulación.
 
 **Implementación verificada el 29/10/2026:** [entrega del alcance del 28/10, uso, permisos y pruebas](proyecto/entrega-alcance-mvp-2026-10-28.md). No sustituye las decisiones originales ni declara preparación de producción.

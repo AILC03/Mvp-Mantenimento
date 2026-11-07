@@ -20,16 +20,37 @@ export const formSchema = z
   .object({
     busId: z.string().max(100),
     sourceRequestId: id.optional(),
+    sourceIncidentId: id.optional(),
     priority: z.enum(['Normal', 'Alta', 'Urgente']),
     reason: text,
     scheduledDate: z.string().max(10),
     odometer: z.string().max(16),
+    estimatedEndDate: z.string().max(10).optional(),
+    responsible: z
+      .object({ kind: z.enum(['taller', 'externo']), refId: id, name: short })
+      .strict()
+      .nullable()
+      .optional(),
+    partMaterials: z
+      .array(
+        z
+          .object({
+            id,
+            partId: id,
+            partNumber: z.string().max(60),
+            name: short,
+            quantity: integer.positive(),
+          })
+          .strict(),
+      )
+      .max(300)
+      .optional(),
     services: z
       .array(
         z
           .object({
             id,
-            catalogId: id,
+            catalogId: z.union([id, z.literal('')]),
             name: short,
             category: short,
             hours: amount,
@@ -76,7 +97,73 @@ const review = z
   })
   .strict();
 const client = { id: id.optional(), clientId: id };
+const inventoryCounts = z
+  .array(z.object({ productId: id, quantity: amount }).strict())
+  .max(300);
 const commandSchema = z.discriminatedUnion('type', [
+  z
+    .object({
+      type: z.literal('repair.record'),
+      vehicleId: id,
+      input: z
+        .object({
+          date: z.string().max(10),
+          description: text,
+          responsible: short,
+          cost: amount.multipleOf(0.01),
+        })
+        .strict(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('inventory.save'),
+      vehicleId: id,
+      counts: inventoryCounts,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('employee.save'),
+      input: z
+        .object({
+          name: short,
+          position: short,
+          phone: z.string().max(50),
+          active: z.boolean().optional(),
+        })
+        .strict(),
+      ...client,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('provider.save'),
+      input: z
+        .object({
+          name: short,
+          contact: short,
+          phone: z.string().max(50),
+          kind: z.enum(['service', 'material', 'both']).optional(),
+        })
+        .strict(),
+      ...client,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('part.save'),
+      input: z
+        .object({
+          name: short,
+          partNumber: z.string().max(60),
+          note: z.string().max(1000),
+          compatibleVehicleIds: z.array(id).min(1).max(1000),
+        })
+        .strict(),
+      ...client,
+    })
+    .strict(),
   z
     .object({ type: z.literal('vehicle.save'), input: vehicle, ...client })
     .strict(),
@@ -89,6 +176,8 @@ const commandSchema = z.discriminatedUnion('type', [
           name: short,
           description: text,
           unit: z.enum(['pza', 'L']),
+          minStock: amount.nullable().optional(),
+          maxStock: amount.nullable().optional(),
         })
         .strict(),
       initial: entry,
@@ -164,6 +253,7 @@ const commandSchema = z.discriminatedUnion('type', [
           performedServiceIds: z.array(id).max(100),
           unperformedReasons: z.record(id, text),
           notes: text,
+          authorizeCirculation: z.boolean().optional(),
         })
         .strict(),
     })
@@ -212,8 +302,9 @@ const commandSchema = z.discriminatedUnion('type', [
       vehicleId: id,
       input: z
         .object({
-          kind: z.enum(['Golpe', 'Incidencia']),
+          kind: z.enum(['Golpe', 'Falla', 'Incidencia']),
           area: short,
+          responsible: short.optional(),
           description: text,
           date: z.string().max(10),
         })
@@ -250,6 +341,7 @@ const commandSchema = z.discriminatedUnion('type', [
       answers: record,
       notes: z.string().max(2000),
       templateId: id.optional(),
+      inventory: inventoryCounts.optional(),
     })
     .strict(),
   z

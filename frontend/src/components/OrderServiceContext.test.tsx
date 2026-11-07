@@ -1,11 +1,25 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "../testing/WorkbenchHarness";
-import { CATALOGS_KEY } from "../catalogs";
+import { CATALOGS_KEY, defaultCatalogs } from "../catalogs";
 import { persistWorkbench } from "../requests";
 
 test("creating a service from an order returns to that order with all its existing inputs", async () => {
   const user = userEvent.setup();
+  localStorage.setItem(
+    CATALOGS_KEY,
+    JSON.stringify({
+      ...defaultCatalogs(),
+      employees: [
+        {
+          id: "employee-test",
+          name: "Carlos Méndez",
+          position: "Mecánico",
+          phone: "",
+        },
+      ],
+    }),
+  );
   render(<App />);
   await user.click(screen.getByRole("button", { name: "Nueva orden" }));
   await user.selectOptions(screen.getByLabelText(/^Unidad \(/), "BUS015");

@@ -5,7 +5,7 @@ export type HistoryCategory =
   | "Revisiones"
   | "Solicitudes"
   | "Materiales"
-  | "Incidencias"
+  | "Fallas"
   | "Reparaciones"
   | "Ajustes CAF";
 export type HistoryRow<T> = {

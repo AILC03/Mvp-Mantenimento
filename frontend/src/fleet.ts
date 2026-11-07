@@ -1,6 +1,17 @@
 import * as d from "../../shared/src/fleet";
 import { track } from "./operations-client";
 export * from "../../shared/src/fleet";
+export const addPastRepair: typeof d.addPastRepair = (
+  data,
+  user,
+  vehicleId,
+  input,
+) =>
+  track(d.addPastRepair(data, user, vehicleId, input), {
+    type: "repair.record",
+    vehicleId,
+    input,
+  });
 export const correctCaf: typeof d.correctCaf = (data, user, vehicle, input) =>
   track(d.correctCaf(data, user, vehicle, input), {
     type: "caf.correct",

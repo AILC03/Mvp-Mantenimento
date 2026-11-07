@@ -5,7 +5,7 @@ Estas instrucciones aplican a todo el repositorio. Antes de editar, leer `docs/p
 ## Autoridad y alcance
 
 1. Respetar las instrucciones actuales del usuario. Las decisiones explícitas posteriores sustituyen las anteriores incompatibles.
-2. El alcance vigente se establece en `docs/proyecto/decisiones-mvp-2026-10-28.md` y su aclaración posterior `docs/proyecto/unidades-sprinter-2026-10-30.md`, que prevalece sobre exclusiones anteriores de Sprinter en viajes o circulación.
+2. El alcance vigente se establece en `docs/proyecto/decisiones-mvp-2026-10-28.md`, `docs/proyecto/unidades-sprinter-2026-10-30.md` y la ampliación posterior `docs/proyecto/ultimos-cambios-mvp-2026-11-07.md`. Las decisiones posteriores prevalecen solo sobre puntos incompatibles; separar implementación de verificación pendiente.
 3. `README.md` y `estadoDelProyecto.md` describen implementación; comprobar sus afirmaciones en código. El documento original v0.2 y las propuestas arquitectónicas son antecedentes, no una lista de funcionalidades obligatorias.
 4. Separar siempre: confirmado por el usuario, criterio de implementación, implementado y pendiente. No presentar una recomendación de una IA como acuerdo del cliente.
 5. Implementar lo solicitado de principio a fin. No ampliar el MVP con módulos, infraestructura o automatizaciones no pedidos. Preguntar solo por contradicciones materiales que no puedan resolverse con el contexto.
@@ -19,13 +19,13 @@ Estas instrucciones aplican a todo el repositorio. Antes de editar, leer `docs/p
 - Categorías: **Autobús** (`bus`/`BUS`) y **Sprinter de pasajeros** (`truck`/`TRUCK`, claves heredadas, no vehículos de carga). Conservar claves, IDs e historial; no crear duplicados para renombrar.
 - Ambas categorías participan en todos los flujos y selectores de unidades. Usar Unidad/Unidades para textos comunes y mostrar el tipo cuando ayude. El filtro manual de catálogo puede acotar una categoría; no excluir Sprinter por código en viajes ni circulación.
 - Un caso de viaje abierto por unidad, tanto Autobús como Sprinter; pre antes de post; ambas etapas antes del cierre. Cerrar no resuelve fallas ni autoriza circulación.
-- Incidencias: ofrecer consulta por unidad y decisión humana; no implementar deduplicación automática ni consolidar/eliminar declaraciones anteriores.
+- Golpes/Fallas: consulta por unidad y decisión humana; conservar claves históricas y declaraciones sin deduplicación automática. El chofer registra directamente, sin confirmación previa; solo admin/mecánico resuelve o abre orden.
 - Carrocero/eléctrico reciben orden y requisición impresas. Almacén registra movimientos y el mecánico finaliza. No necesitan cuentas ni paneles de técnicos en este MVP.
-- No añadir fotos/comprobantes privados, recuperación de contraseña ni administración completa de empleados a esta entrega.
-- Circulación requiere decisión explícita, independiente de órdenes/revisiones. Sin decisión no asumir autorización. Ver especificación vigente para permisos y resumen.
+- No añadir fotos/comprobantes privados ni recuperación de contraseña. Sí catálogo de empleados del taller con baja lógica, sin cuentas ni paneles de técnicos; fotos solo indicadas como pendientes.
+- Circulación requiere decisión explícita. Orden en proceso/pausada deriva bloqueo sin actor sistema; al finalizar se registra Autorizar/No autorizar. Otro trabajo en curso impide autorizar. Cerrar viajes no autoriza.
 - Servicios externos/carretera: registro por unidad con costos y prestador; no descuentan inventario. No añadir mano de obra ni gastos externos a órdenes internas.
 - No introducir entregas fuera de turno ni modelado de turnos. Conservar captura al cierre del turno y las entregas/devoluciones actuales.
-- Mantener CAF 15,000 km, general 45 días y emergencia 90 días. Una revisión vencida avisa; no bloquea ni crea órdenes automáticamente.
+- Mantener CAF 15,000 km, general 30 días y emergencia 90 días. Actualizar la definición general guardada sin reescribir plantillas capturadas. Una revisión vencida avisa; no bloquea ni crea órdenes automáticamente.
 - Finalizar una orden con materiales exige entrega neta positiva de cada artículo requerido, confirmada por almacén; puede igualar lo estimado. Sin materiales, ese bloqueo no aplica.
 
 ## Arquitectura y cambios

@@ -15,6 +15,7 @@ test("a new Sprinter keeps the legacy truck key and requests survive reload", as
   await user.click(screen.getByRole("button", { name: "Nueva unidad" }));
   await user.selectOptions(screen.getByLabelText(/^Tipo de unidad/), "truck");
   await user.type(screen.getByLabelText(/^Número económico/), "CAM777");
+  await user.type(screen.getByLabelText(/^VIN/), "1HGCM82633A004352");
   await user.type(screen.getByLabelText(/^Odómetro \(km\)/), "5000");
   await user.click(screen.getByRole("button", { name: "Guardar" }));
   const catalogs = JSON.parse(localStorage.getItem(CATALOGS_KEY)!);

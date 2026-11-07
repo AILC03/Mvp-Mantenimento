@@ -26,14 +26,19 @@ export type ReviewJob = {
 export type Damage = {
   id: string;
   busId: string;
-  kind: "Golpe" | "Incidencia";
+  // "Incidencia" es la clave histórica; en la UI se muestra como Falla.
+  kind: "Golpe" | "Falla" | "Incidencia";
   area: string;
   description: string;
   date: string;
+  // Persona responsable del golpe o de la falla reportada (opcional).
+  responsible?: string;
   recordedAt: string;
   actorId: string;
   actorName: string;
 };
+export const damageKindLabel = (kind: Damage["kind"]) =>
+  kind === "Incidencia" ? "Falla" : kind;
 export type Resolution = {
   id: string;
   sourceId: string;
@@ -60,17 +65,31 @@ export type CafCorrection = {
   actorName: string;
   reason: string;
 };
+// Reparación hecha fuera del sistema antes de operar con el MVP.
+export type PastRepair = {
+  id: string;
+  busId: string;
+  date: string;
+  description: string;
+  responsible: string;
+  cost: number;
+  recordedAt: string;
+  actorId: string;
+  actorName: string;
+};
 export type FleetRecords = {
   reviewJobs: ReviewJob[];
   damages: Damage[];
   resolutions: Resolution[];
   cafCorrections: CafCorrection[];
+  pastRepairs?: PastRepair[];
 };
 export const emptyFleet = (): FleetRecords => ({
   reviewJobs: [],
   damages: [],
   resolutions: [],
   cafCorrections: [],
+  pastRepairs: [],
 });
 export const fleetRecords = (data: Workbench) => data.fleet ?? emptyFleet();
 
@@ -116,6 +135,28 @@ export function validFleetRecords(value: unknown): FleetRecords {
     )
   )
     throw new Error("Historial de flota incompatible.");
+  if (
+    data.pastRepairs !== undefined &&
+    (!Array.isArray(data.pastRepairs) ||
+      data.pastRepairs.some(
+        (r) =>
+          !r ||
+          ![
+            r.id,
+            r.busId,
+            r.date,
+            r.description,
+            r.responsible,
+            r.actorId,
+            r.actorName,
+            r.recordedAt,
+          ].every((v) => typeof v === "string" && v.length > 0) ||
+          !validPastDate(r.date) ||
+          !Number.isFinite(r.cost) ||
+          r.cost < 0,
+      ))
+  )
+    throw new Error("Reparaciones anteriores incompatibles.");
   return data;
 }
 
@@ -284,7 +325,7 @@ export function vehicleIncidents(
       sourceId: `damage:${item.id}`,
       busId,
       date: item.date,
-      source: item.kind,
+      source: damageKindLabel(item.kind),
       title: `${item.area}: ${item.description}`,
       notes: `Registrado por ${item.actorName}`,
     }));
@@ -338,19 +379,28 @@ export function addDamage(
     area: string;
     description: string;
     date: string;
+    responsible?: string;
   },
 ): Workbench {
-  if (!managesOrders(user))
-    throw new Error("Solo mecánico o admin registra incidencias de taller.");
+  if (!managesOrders(user) && user.role !== "DRIVER")
+    throw new Error("Solo mecánico, admin o chofer registra golpes y fallas.");
   if (
+    !["Golpe", "Falla", "Incidencia"].includes(input.kind) ||
     !input.area.trim() ||
     !input.description.trim() ||
+    input.area.length > 150 ||
+    input.description.length > 4000 ||
+    (input.responsible?.length ?? 0) > 150 ||
     !validPastDate(input.date)
   )
     throw new Error("Completa parte afectada, descripción y fecha válida.");
   const fleet = fleetRecords(data);
   const damage: Damage = {
     ...input,
+    kind: input.kind === "Incidencia" ? "Falla" : input.kind,
+    area: input.area.trim(),
+    description: input.description.trim(),
+    responsible: input.responsible?.trim() ?? "",
     id: crypto.randomUUID(),
     busId: vehicleId,
     recordedAt: new Date().toISOString(),
@@ -403,4 +453,43 @@ export function remainingDays(date: string, interval: number): number {
   return Math.round(
     (Date.parse(`${date}T00:00:00Z`) + interval * 86400000 - day) / 86400000,
   );
+}
+
+export function addPastRepair(
+  data: Workbench,
+  user: AuthUser,
+  busId: string,
+  input: Pick<PastRepair, "date" | "description" | "responsible" | "cost">,
+): Workbench {
+  if (!managesOrders(user))
+    throw new Error("Solo mecánico o admin registra reparaciones anteriores.");
+  if (
+    !validPastDate(input.date) ||
+    !input.description.trim() ||
+    input.description.length > 4000 ||
+    !input.responsible.trim() ||
+    input.responsible.length > 150 ||
+    !Number.isFinite(input.cost) ||
+    input.cost < 0 ||
+    input.cost > 1e9 ||
+    Math.abs(input.cost * 100 - Math.round(input.cost * 100)) > 1e-6
+  )
+    throw new Error(
+      "Revisa fecha, descripción, responsable e importe de la reparación anterior.",
+    );
+  const fleet = fleetRecords(data);
+  const repair: PastRepair = {
+    ...input,
+    description: input.description.trim(),
+    responsible: input.responsible.trim(),
+    id: crypto.randomUUID(),
+    busId,
+    actorId: user.id,
+    actorName: user.name,
+    recordedAt: new Date().toISOString(),
+  };
+  return {
+    ...data,
+    fleet: { ...fleet, pastRepairs: [repair, ...(fleet.pastRepairs ?? [])] },
+  };
 }

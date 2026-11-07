@@ -4,6 +4,8 @@ import {
   decideCirculation,
   type ExternalServiceInput,
   type CirculationStatus,
+  type UnitInventoryCount,
+  recordTripInventory,
 } from "./unit-records";
 import {
   defaultCatalogs,
@@ -12,6 +14,10 @@ import {
   saveService,
   saveReview,
   addStockEntry,
+  saveEmployee,
+  saveProvider,
+  saveVehiclePart,
+  normalizeCatalogs,
   type Catalogs,
 } from "./catalogs";
 import {
@@ -34,6 +40,7 @@ import {
   addDamage,
   resolveIncident,
   vehicleIncidents,
+  addPastRepair,
 } from "./fleet";
 import {
   startTripCase,
@@ -49,6 +56,30 @@ export type OperationsState = {
   trips: TripCase[];
 };
 export type Command =
+  | {
+      type: "repair.record";
+      vehicleId: string;
+      input: Parameters<typeof addPastRepair>[3];
+    }
+  | { type: "inventory.save"; vehicleId: string; counts: UnitInventoryCount[] }
+  | {
+      type: "employee.save";
+      input: Parameters<typeof saveEmployee>[1];
+      id?: string;
+      clientId: string;
+    }
+  | {
+      type: "provider.save";
+      input: Parameters<typeof saveProvider>[1];
+      id?: string;
+      clientId: string;
+    }
+  | {
+      type: "part.save";
+      input: Parameters<typeof saveVehiclePart>[1];
+      id?: string;
+      clientId: string;
+    }
   | { type: "external.record"; vehicleId: string; input: ExternalServiceInput }
   | { type: "circulation.decide"; vehicleId: string; status: CirculationStatus }
   | {
@@ -136,6 +167,7 @@ export type Command =
       answers: Record<string, TripAnswer>;
       notes: string;
       templateId?: string;
+      inventory?: UnitInventoryCount[];
     }
   | { type: "trip.close"; id: string; notes: string }
   | { type: "draft.save"; form: OrderForm };
@@ -153,12 +185,29 @@ export function emptyOperations(): OperationsState {
 export function permitted(user: AuthUser, type: Command["type"]): boolean {
   if (user.role === "ADMIN") return true;
   if (user.role === "DRIVER")
-    return ["request.create", "trip.start", "trip.submit"].includes(type);
+    return [
+      "request.create",
+      "trip.start",
+      "trip.submit",
+      "damage.add",
+      "external.record",
+      "provider.save",
+    ].includes(type);
   if (user.role === "WAREHOUSE_CLERK")
-    return ["product.save", "stock.add", "materials.confirm"].includes(type);
+    return [
+      "product.save",
+      "stock.add",
+      "materials.confirm",
+      "provider.save",
+    ].includes(type);
   if (user.role === "LEAD_MECHANIC")
     return [
       "service.save",
+      "employee.save",
+      "provider.save",
+      "part.save",
+      "inventory.save",
+      "repair.record",
       "request.reject",
       "order.create",
       "order.change",
@@ -182,6 +231,7 @@ export function applyCommand(
   if (!permitted(user, command.type))
     throw new Error("Tu perfil no puede realizar esta operación.");
   const next = structuredClone(state);
+  next.catalogs = normalizeCatalogs(next.catalogs);
   const c = next.catalogs;
   const vehicle = (id: string) => {
     const value = c.vehicles.find((v) => v.id === id);
@@ -206,6 +256,61 @@ export function applyCommand(
     }
   };
   switch (command.type) {
+    case "repair.record":
+      vehicle(command.vehicleId);
+      next.workbench = addPastRepair(
+        next.workbench,
+        user,
+        command.vehicleId,
+        command.input,
+      );
+      break;
+    case "inventory.save": {
+      vehicle(command.vehicleId);
+      if (
+        next.trips.some(
+          (trip) =>
+            trip.busId === command.vehicleId && trip.pre && !trip.closedAt,
+        )
+      )
+        throw new Error(
+          "No se puede reconfigurar inventario durante un viaje con pre trip enviada.",
+        );
+      const checked = recordTripInventory(
+        next.workbench,
+        user,
+        {
+          id: "configuration",
+          number: "Configuración",
+          busId: command.vehicleId,
+        },
+        "pre",
+        command.counts,
+        c.products,
+      );
+      next.workbench = checked;
+      break;
+    }
+    case "employee.save":
+      next.catalogs.employees = saveEmployee(c, command.input, command.id);
+      identify(next.catalogs.employees, command.id, command.clientId);
+      break;
+    case "provider.save":
+      if (user.role === "DRIVER" && command.id)
+        throw new Error(
+          "El chofer solo puede dar de alta un prestador, no editar proveedores existentes.",
+        );
+      next.catalogs.providers = saveProvider(c, command.input, command.id);
+      identify(next.catalogs.providers, command.id, command.clientId);
+      break;
+    case "part.save":
+      next.catalogs.vehicleParts = saveVehiclePart(
+        c,
+        command.input,
+        command.id,
+      );
+      identify(next.catalogs.vehicleParts, command.id, command.clientId);
+      break;
     case "external.record":
       vehicle(command.vehicleId);
       next.workbench = addExternalService(
@@ -279,6 +384,48 @@ export function applyCommand(
     case "order.create": {
       if (!isOrderForm(command.form))
         throw new Error("Formato de orden inválido.");
+      if (
+        command.form.sourceIncidentId &&
+        !vehicleIncidents(command.form.busId, next.workbench, next.trips).some(
+          (i) => i.sourceId === command.form.sourceIncidentId && !i.resolution,
+        )
+      )
+        throw new Error("La falla de origen no está activa en esta unidad.");
+      const responsible = command.form.responsible;
+      if (responsible) {
+        const people =
+          responsible.kind === "taller" ? c.employees : c.providers;
+        if (
+          !people.some(
+            (person) =>
+              person.id === responsible.refId &&
+              person.name === responsible.name &&
+              (!("active" in person) || person.active !== false) &&
+              (!("kind" in person) || person.kind !== "material"),
+          )
+        )
+          throw new Error(
+            "El responsable ya no coincide con el catálogo vigente.",
+          );
+      }
+      const parts = command.form.partMaterials ?? [];
+      if (
+        new Set(parts.map((p) => p.partId)).size !== parts.length ||
+        new Set(parts.map((p) => p.id)).size !== parts.length
+      )
+        throw new Error("No repitas piezas en la orden.");
+      for (const part of parts) {
+        const definition = c.vehicleParts.find((p) => p.id === part.partId);
+        if (
+          !definition ||
+          !definition.compatibleVehicleIds.includes(command.form.busId) ||
+          definition.name !== part.name ||
+          definition.partNumber !== part.partNumber
+        )
+          throw new Error(
+            "Revisa la compatibilidad y los datos de las piezas.",
+          );
+      }
       const errors = validateOrder(
         command.form,
         c.vehicles,
@@ -289,8 +436,11 @@ export function applyCommand(
       if (
         new Set(command.form.services.map((s) => s.id)).size !==
           command.form.services.length ||
-        new Set(command.form.services.map((s) => s.catalogId)).size !==
-          command.form.services.length
+        new Set(
+          command.form.services
+            .filter((s) => s.catalogId)
+            .map((s) => s.catalogId),
+        ).size !== command.form.services.filter((s) => s.catalogId).length
       )
         throw new Error("No repitas identificadores o servicios en una orden.");
       for (const service of command.form.services)
@@ -423,7 +573,37 @@ export function applyCommand(
         command.answers,
         command.notes,
         c.reviews.find((r) => r.id === command.templateId),
+        command.inventory,
       );
+      {
+        const trip = next.trips.find((t) => t.id === command.id)!;
+        const configured = next.workbench.unitInventories?.find(
+          (i) => i.busId === trip.busId,
+        );
+        if (configured?.items.length && !command.inventory)
+          throw new Error("Cuenta los artículos del inventario de la unidad.");
+        if (command.inventory) {
+          const expected = configured?.items ?? [];
+          if (
+            command.inventory.length !== expected.length ||
+            expected.some(
+              (row) =>
+                !command.inventory!.some((r) => r.productId === row.productId),
+            )
+          )
+            throw new Error(
+              "Cuenta todos los artículos configurados, sin agregar artículos ajenos al inventario.",
+            );
+          next.workbench = recordTripInventory(
+            next.workbench,
+            user,
+            trip,
+            command.stage,
+            command.inventory,
+            c.products,
+          );
+        }
+      }
       break;
     case "trip.close":
       next.trips = closeTripCase(next.trips, user, command.id, command.notes);

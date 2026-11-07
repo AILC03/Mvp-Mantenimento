@@ -6,6 +6,7 @@ import {
   validateUnitRecords,
   type ExternalService,
   type CirculationDecision,
+  type UnitInventory,
 } from "./unit-records";
 
 export const DRIVER = { id: "driver-demo", name: "José Hernández" };
@@ -54,6 +55,8 @@ export type Workbench = {
   fleet?: FleetRecords;
   externalServices?: ExternalService[];
   circulationDecisions?: CirculationDecision[];
+  // Inventario por unidad (independiente del almacén); opcional en snapshots previos.
+  unitInventories?: UnitInventory[];
 };
 export const WORKBENCH_KEY = "real-ejecutivo.demo.workbench.v2";
 

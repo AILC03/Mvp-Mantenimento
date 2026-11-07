@@ -259,7 +259,7 @@ databaseTests('Operación completa con PostgreSQL aislado', () => {
         brand: 'Prueba',
         model: 'Modelo',
         plate: '',
-        vin: '',
+        vin: '1HGCM82633A004352',
         year: 2025,
         odometer: 1000,
         note: '',
@@ -441,7 +441,7 @@ databaseTests('Operación completa con PostgreSQL aislado', () => {
         name: 'General',
         description: '',
         frequency: 'days',
-        intervalDays: 45,
+        intervalDays: 30,
         aspects: [{ id: 'a1', text: 'Frenos' }],
       },
     });
@@ -569,11 +569,11 @@ databaseTests('Operación completa con PostgreSQL aislado', () => {
         description: 'Reparación externa',
         provider: 'Empresa de carretera',
         materialsCost: 123.45,
-        laborCost: 0,
+        laborCost: 10,
         notes: 'Sin inventario',
       },
     };
-    for (const role of ['driver', 'warehouse', 'technician'])
+    for (const role of ['warehouse', 'technician'])
       await command(role, value, 403);
     await command('mechanic', { ...value, vehicleId: randomUUID() }, 400);
     await command(
@@ -619,11 +619,13 @@ databaseTests('Operación completa con PostgreSQL aislado', () => {
       actorName: 'Prueba mechanic',
       date: dateToday(),
     });
-    expect(externalTotal(after.workbench.externalServices![0])).toBe(123.45);
+    expect(externalTotal(after.workbench.externalServices![0])).toBe(133.45);
     expect(after.catalogs).toEqual(before.catalogs);
     expect(after.workbench.orders).toEqual(before.workbench.orders);
     expect(after.workbench.fleet).toEqual(before.workbench.fleet);
-    expect(after.workbench.circulationDecisions).toBeUndefined();
+    expect(after.workbench.circulationDecisions).toEqual(
+      before.workbench.circulationDecisions,
+    );
     expect(
       (await latest('warehouse')).workbench.externalServices,
     ).toBeUndefined();
@@ -632,7 +634,8 @@ databaseTests('Operación completa con PostgreSQL aislado', () => {
 
   it('conserva decisiones explícitas y su historial sin autorización implícita inicial', async () => {
     const before = await latest();
-    expect(before.workbench.circulationDecisions).toBeUndefined();
+    const previousDecisionCount =
+      before.workbench.circulationDecisions?.length ?? 0;
     for (const role of ['driver', 'warehouse', 'technician'])
       await command(
         role,
@@ -650,13 +653,18 @@ databaseTests('Operación completa con PostgreSQL aislado', () => {
       status: 'unauthorized',
     });
     const state = await latest();
-    expect(state.workbench.circulationDecisions?.map((d) => d.status)).toEqual([
-      'unauthorized',
-      'authorized',
-    ]);
-    expect(state.workbench.circulationDecisions?.map((d) => d.actorId)).toEqual(
-      [actorIds.mechanic, actorIds.admin],
+    expect(state.workbench.circulationDecisions).toHaveLength(
+      previousDecisionCount + 2,
     );
+    expect(state.workbench.circulationDecisions?.slice(2)).toEqual(
+      before.workbench.circulationDecisions ?? [],
+    );
+    expect(
+      state.workbench.circulationDecisions?.slice(0, 2).map((d) => d.status),
+    ).toEqual(['unauthorized', 'authorized']);
+    expect(
+      state.workbench.circulationDecisions?.slice(0, 2).map((d) => d.actorId),
+    ).toEqual([actorIds.mechanic, actorIds.admin]);
     expect(
       state.workbench.circulationDecisions?.every(
         (d) => d.busId === vehicleId && !Number.isNaN(Date.parse(d.recordedAt)),
@@ -764,7 +772,11 @@ databaseTests('Operación completa con PostgreSQL aislado', () => {
     expect(
       after.workbench.orders.find((o) => o.id === id)?.completion?.odometer,
     ).toBe(1000);
-    expect(after.workbench.circulationDecisions).toEqual(
+    expect(after.workbench.circulationDecisions?.[0]).toMatchObject({
+      status: 'unauthorized',
+      actorId: actorIds.mechanic,
+    });
+    expect(after.workbench.circulationDecisions?.slice(1)).toEqual(
       state.workbench.circulationDecisions,
     );
     expect(after.workbench.externalServices).toEqual(
@@ -859,7 +871,7 @@ databaseTests('Operación completa con PostgreSQL aislado', () => {
       },
     });
     const stockBefore = await latest();
-    for (const role of ['driver', 'warehouse', 'technician']) {
+    for (const role of ['warehouse', 'technician']) {
       await command(
         role,
         {
@@ -933,7 +945,13 @@ databaseTests('Operación completa con PostgreSQL aislado', () => {
       after.workbench.circulationDecisions
         ?.filter((r) => r.busId === sprinterId)
         .map((r) => r.status),
-    ).toEqual(['unauthorized', 'authorized']);
+    ).toEqual([
+      'unauthorized',
+      'authorized',
+      ...(stockBefore.workbench.circulationDecisions ?? [])
+        .filter((r) => r.busId === sprinterId)
+        .map((r) => r.status),
+    ]);
   });
 
   it('Sprinter completa pre/post/cierre manteniendo un solo caso abierto por unidad y roles', async () => {
@@ -1016,6 +1034,64 @@ databaseTests('Operación completa con PostgreSQL aislado', () => {
         ?.status,
     ).toBe('unauthorized');
     await command('driver', { ...start, clientId: randomUUID() });
+  });
+
+  it('persiste reporte directo de chofer sin solicitud, conserva autor y evita duplicado por reintento', async () => {
+    const before = await latest();
+    const saved = await command('driver', {
+      type: 'damage.add',
+      vehicleId,
+      input: {
+        kind: 'Falla',
+        area: 'Puerta',
+        description: 'Reporte directo persistente',
+        date: dateToday(),
+        responsible: 'Por determinar',
+      },
+    });
+    await api()
+      .post('/api/operations/commands')
+      .set('Cookie', cookies.driver)
+      .set('Origin', origin)
+      .send(saved.envelope)
+      .expect(201);
+    const after = await latest();
+    const reports = after.workbench.fleet!.damages.filter(
+      (r) => r.description === 'Reporte directo persistente',
+    );
+    expect(reports).toHaveLength(1);
+    expect(reports[0]).toMatchObject({
+      actorId: actorIds.driver,
+      busId: vehicleId,
+      kind: 'Falla',
+      responsible: 'Por determinar',
+    });
+    expect(after.workbench.requests).toEqual(before.workbench.requests);
+    expect(after.catalogs.products).toEqual(before.catalogs.products);
+    expect(
+      after.workbench.fleet!.resolutions.some(
+        (r) => r.sourceId === `damage:${reports[0].id}`,
+      ),
+    ).toBe(false);
+    await command(
+      'driver',
+      {
+        type: 'incident.resolve',
+        vehicleId,
+        sourceId: `damage:${reports[0].id}`,
+        notes: 'No autorizado',
+        orderId: '',
+      },
+      403,
+    );
+    const stored = await prisma.operationState.findUniqueOrThrow({
+      where: { id: 1 },
+    });
+    expect(
+      (stored.data as unknown as OperationsState).workbench.fleet!.damages.some(
+        (r) => r.id === reports[0].id,
+      ),
+    ).toBe(true);
   });
 
   it('serializa capturas simultáneas sin perder entradas y conserva auditoría', async () => {

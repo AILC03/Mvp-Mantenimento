@@ -2,9 +2,11 @@ import type { AuthUser } from "./auth";
 import type { ReviewType } from "./catalogs";
 import type { Vehicle } from "./data";
 import { domainStorage } from "./storage";
+import type { UnitInventoryCount } from "./unit-records";
 
 export type TripAnswer = "good" | "fault";
 export type TripInspection = {
+  inventory?: UnitInventoryCount[];
   answers: Record<string, TripAnswer>;
   notes: string;
   submittedAt: string;
@@ -96,6 +98,21 @@ export function loadTripCases(raw?: string | null): TripCase[] {
       for (const stage of ["pre", "post"] as const) {
         const inspection = item[stage];
         if (
+          inspection?.inventory !== undefined &&
+          (!Array.isArray(inspection.inventory) ||
+            new Set(inspection.inventory.map((row) => row?.productId)).size !==
+              inspection.inventory.length ||
+            inspection.inventory.some(
+              (row) =>
+                !row ||
+                typeof row.productId !== "string" ||
+                !row.productId ||
+                !Number.isFinite(row.quantity) ||
+                row.quantity < 0,
+            ))
+        )
+          throw new Error();
+        if (
           inspection !== null &&
           (!inspection ||
             !item.template ||
@@ -186,6 +203,7 @@ export function submitTripInspection(
   answers: Record<string, TripAnswer>,
   notes: string,
   template?: ReviewType,
+  inventory?: UnitInventoryCount[],
 ): TripCase[] {
   const item = cases.find((value) => value.id === caseId);
   if (!item || user.role !== "DRIVER" || item.driverId !== user.id)
@@ -211,7 +229,15 @@ export function submitTripInspection(
     throw new Error("Marca Bien o Con falla en todos los aspectos.");
   if (notes.length > 2000)
     throw new Error("Las observaciones admiten hasta 2000 caracteres.");
+  if (
+    definition.aspects.some((aspect) => answers[aspect.id] === "fault") &&
+    !notes.trim()
+  )
+    throw new Error("Describe la falla en las observaciones antes de enviar.");
   const inspection: TripInspection = {
+    ...(inventory === undefined
+      ? {}
+      : { inventory: structuredClone(inventory) }),
     answers: Object.fromEntries(
       definition.aspects.map((aspect) => [aspect.id, answers[aspect.id]]),
     ),

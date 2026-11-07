@@ -26,15 +26,21 @@ import {
 import { Modal } from "./Modal";
 import { TripIncidents } from "./TripIncidents";
 import { remoteEnabled, startOperations } from "../operations-client";
+import { loadWorkbench } from "../requests";
+import { loadCatalogs } from "../catalogs";
+import type { UnitInventoryCount } from "../unit-records";
+import type { Command } from "../../../shared/src/operations";
 
 export function TripReviews({
   user,
   vehicles,
   templates,
+  onDerive,
 }: {
   user: AuthUser;
   vehicles: Vehicle[];
   templates: ReviewType[];
+  onDerive?: (command: Command) => Promise<string | null>;
 }) {
   const [initial] = useState(() => {
     try {
@@ -306,9 +312,8 @@ export function TripReviews({
           <strong>El único resultado de cierre es «Cierre de caso».</strong>
           <p>
             No hay cierre negativo. Las fallas registradas se conservan; cerrar
-            el caso no resuelve incidencias ni autoriza circulación. Los casos
-            se guardan en PostgreSQL y se comparten entre los usuarios
-            autorizados.
+            el caso no resuelve fallas ni autoriza circulación. Los casos se
+            guardan en PostgreSQL y se comparten entre los usuarios autorizados.
           </p>
         </div>
       </div>
@@ -416,7 +421,7 @@ export function TripReviews({
             stage={dialog.kind}
             templates={templates}
             error={dialogError}
-            onSubmit={async (answers, notes, template) => {
+            onSubmit={async (answers, notes, template, inventory) => {
               const saved = await commit(
                 (latest) =>
                   submitTripInspection(
@@ -427,6 +432,7 @@ export function TripReviews({
                     answers,
                     notes,
                     template,
+                    inventory,
                   ),
                 dialog.kind === "post"
                   ? "Ambas revisiones están completas. Caso pendiente de revisión por mecánico o admin."
@@ -479,6 +485,68 @@ export function TripReviews({
                   <p className="request-description">
                     {selected[stage].notes || "Sin observaciones adicionales."}
                   </p>
+                  {user.role === "DRIVER" &&
+                    onDerive &&
+                    selected.template?.aspects
+                      .filter((a) => selected[stage]!.answers[a.id] === "fault")
+                      .map((aspect) => (
+                        <div key={aspect.id} className="order-actions">
+                          <p>
+                            {aspect.text}: el registro de revisión ya se
+                            conserva. Estas acciones agregan un registro
+                            separado.
+                          </p>
+                          <button
+                            type="button"
+                            className="button secondary"
+                            onClick={async () => {
+                              const failure = await onDerive({
+                                type: "request.create",
+                                clientId: crypto.randomUUID(),
+                                input: {
+                                  busId: selected.busId,
+                                  title: aspect.text.slice(0, 120),
+                                  description: `${selected.number} · ${stage} trip: ${selected[stage]!.notes}`,
+                                  odometer: "",
+                                },
+                              });
+                              setDialogError(failure ?? "");
+                              if (!failure)
+                                setMessage(
+                                  "Solicitud creada para revisión del mecánico.",
+                                );
+                            }}
+                          >
+                            Crear solicitud por {aspect.text}
+                          </button>
+                          <button
+                            type="button"
+                            className="button secondary"
+                            onClick={async () => {
+                              const failure = await onDerive({
+                                type: "damage.add",
+                                vehicleId: selected.busId,
+                                input: {
+                                  kind: "Falla",
+                                  date: selected[stage]!.submittedAt.slice(
+                                    0,
+                                    10,
+                                  ),
+                                  area: aspect.text.slice(0, 150),
+                                  description: `${selected.number} · ${stage} trip: ${selected[stage]!.notes}`,
+                                },
+                              });
+                              setDialogError(failure ?? "");
+                              if (!failure)
+                                setMessage(
+                                  "Falla registrada directamente en la unidad, sin confirmación previa.",
+                                );
+                            }}
+                          >
+                            Registrar falla por {aspect.text}
+                          </button>
+                        </div>
+                      ))}
                 </>
               ) : (
                 <p className="modal-description">Pendiente de realizar.</p>
@@ -564,6 +632,7 @@ function TripInspectionForm({
     answers: Record<string, TripAnswer>,
     notes: string,
     template?: ReviewType,
+    inventory?: UnitInventoryCount[],
   ) => void;
 }) {
   const available = templates.filter(
@@ -576,13 +645,20 @@ function TripInspectionForm({
   );
   const [answers, setAnswers] = useState<Record<string, TripAnswer>>({});
   const [notes, setNotes] = useState("");
+  const [inventory, setInventory] = useState(
+    () =>
+      loadWorkbench()
+        .unitInventories?.find((i) => i.busId === item.busId)
+        ?.items.map((r) => ({ ...r })) ?? [],
+  );
+  const products = loadCatalogs().products;
   const template =
     item.template ?? available.find((value) => value.id === templateId);
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        onSubmit(answers, notes, template);
+        onSubmit(answers, notes, template, inventory);
       }}
     >
       <p className="modal-description">
@@ -670,11 +746,53 @@ function TripInspectionForm({
             Observaciones de la revisión
             <textarea
               maxLength={2000}
+              required={Object.values(answers).includes("fault")}
               value={notes}
               rows={3}
               onChange={(event) => setNotes(event.target.value)}
             />
           </label>
+          <fieldset>
+            <legend>Inventario de la unidad · {stage} trip</legend>
+            {!inventory.length && (
+              <p>Sin artículos configurados para esta unidad.</p>
+            )}
+            {inventory.map((row) => {
+              const product = products.find((p) => p.id === row.productId);
+              return (
+                <label className="field" key={row.productId}>
+                  {product?.name ?? row.productId} ({product?.unit})
+                  <input
+                    aria-label={`Conteo ${product?.name ?? row.productId}`}
+                    type="number"
+                    required
+                    min="0"
+                    step={product?.unit === "L" ? "0.5" : "1"}
+                    value={Number.isFinite(row.quantity) ? row.quantity : ""}
+                    onChange={(e) =>
+                      setInventory(
+                        inventory.map((r) =>
+                          r.productId === row.productId
+                            ? {
+                                ...r,
+                                quantity:
+                                  e.target.value === ""
+                                    ? NaN
+                                    : Number(e.target.value),
+                              }
+                            : r,
+                        ),
+                      )
+                    }
+                  />
+                </label>
+              );
+            })}
+            <p>
+              Una disminución en post trip queda registrada; no modifica
+              almacén.
+            </p>
+          </fieldset>
           <div className="modal-actions">
             <button type="submit" className="button primary">
               Enviar revisión {stage} trip <ArrowRight size={15} />

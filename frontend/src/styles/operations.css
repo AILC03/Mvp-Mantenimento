@@ -43,6 +43,9 @@
   }
 }
 @media print {
+  .requisition-sheet button {
+    display: none !important;
+  }
   .requisition-sheet article {
     break-inside: avoid;
   }

@@ -20,7 +20,7 @@ export function TripIncidents({ tripId }: { tripId: string }) {
       .then(async (response) => {
         if (!response.ok)
           throw new Error(
-            "No se pudieron consultar las incidencias. Intenta nuevamente.",
+            "No se pudieron consultar las fallas. Intenta nuevamente.",
           );
         const result = (await response.json()) as {
           incidents: IncidentSummary[];
@@ -39,7 +39,7 @@ export function TripIncidents({ tripId }: { tripId: string }) {
   return (
     <section
       className="unit-records"
-      aria-label="Consulta de incidencias de la unidad"
+      aria-label="Consulta de fallas de la unidad"
     >
       <button
         type="button"
@@ -51,14 +51,11 @@ export function TripIncidents({ tripId }: { tripId: string }) {
           setOpen(true);
         }}
       >
-        Ver incidencias de la unidad
+        Ver fallas de la unidad
       </button>
       {open &&
         createPortal(
-          <Modal
-            title="Incidencias de la unidad"
-            onClose={() => setOpen(false)}
-          >
+          <Modal title="Fallas de la unidad" onClose={() => setOpen(false)}>
             <p>
               Consulta de la unidad de este viaje. No modifica tus respuestas ni
               resuelve fallas.
@@ -72,13 +69,10 @@ export function TripIncidents({ tripId }: { tripId: string }) {
               Consultar resueltas
             </label>
             {error && <p role="alert">{error}</p>}
-            {!incidents && !error && (
-              <p role="status">Consultando incidencias…</p>
-            )}
+            {!incidents && !error && <p role="status">Consultando fallas…</p>}
             {visible?.length === 0 && (
               <p>
-                Sin incidencias {resolved ? "resueltas" : "activas"} en esta
-                unidad.
+                Sin fallas {resolved ? "resueltas" : "activas"} en esta unidad.
               </p>
             )}
             {visible?.map((item) => (
@@ -97,7 +91,7 @@ export function TripIncidents({ tripId }: { tripId: string }) {
                 className="button secondary"
                 onClick={() => setOpen(false)}
               >
-                Cerrar consulta de incidencias
+                Cerrar consulta de fallas
               </button>
             </div>
           </Modal>,

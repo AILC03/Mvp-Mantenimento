@@ -362,6 +362,14 @@ export function OrdersView({
           )}
         <dl className="preview-details">
           <div>
+            <dt>Responsable de orden</dt>
+            <dd>{order.form.responsible?.name ?? "Por asignar"}</dd>
+          </div>
+          <div>
+            <dt>Término estimado</dt>
+            <dd>{order.form.estimatedEndDate || "Sin captura histórica"}</dd>
+          </div>
+          <div>
             <dt>Unidad</dt>
             <dd>{vehicle?.fleetNumber ?? order.form.busId}</dd>
           </div>
@@ -479,7 +487,7 @@ export function OrdersView({
               <p>{order.completion.notes || "Sin observaciones adicionales"}</p>
               <small>
                 {order.completion.actorName}. Finalizar no autoriza circulación
-                ni resuelve automáticamente incidencias.
+                ni resuelve automáticamente fallas.
               </small>
             </div>
           </div>
@@ -521,6 +529,11 @@ export function OrdersView({
               : "Requisición de materiales"}
           </h1>
           <p>Orden: {order.number}</p>
+          <p>
+            Responsable de orden:{" "}
+            {order.form.responsible?.name ?? "Por asignar"} · Término estimado:{" "}
+            {order.form.estimatedEndDate || "Sin captura histórica"}
+          </p>
           <p>
             Unidad: {vehicle?.fleetNumber} ·{" "}
             {vehicle && vehicleTypeLabel(vehicle.type)} · Fecha de impresión:{" "}
@@ -587,6 +600,16 @@ export function OrdersView({
               })}
             </tbody>
           </table>
+          {(order.form.partMaterials ?? []).length > 0 && (
+            <>
+              <h2>Piezas solicitadas (sin movimiento de almacén)</h2>
+              {order.form.partMaterials!.map((p) => (
+                <p key={p.id}>
+                  {p.partNumber} · {p.name} · {p.quantity} pza
+                </p>
+              ))}
+            </>
+          )}
           <p>
             Materiales sujetos a entrega física y confirmación de almacén. Este
             impreso no cambia estados, inventario ni autoriza circulación.
@@ -596,6 +619,12 @@ export function OrdersView({
             <span>Entrega: __________________</span>
             <span>Recibe: __________________</span>
           </div>
+          {printKind === "order" && (
+            <div className="signature-lines">
+              <span>Firma de recibido: __________________</span>
+              <span>Firma de trabajo terminado: __________________</span>
+            </div>
+          )}
         </section>,
         document.body,
       )}
@@ -704,6 +733,7 @@ function FinishForm({
           performedServiceIds: performed,
           unperformedReasons: reasons,
           notes: String(fields.get("notes") ?? ""),
+          authorizeCirculation: fields.get("authorizeCirculation") === "on",
         });
       }}
     >
@@ -776,6 +806,16 @@ function FinishForm({
       <label className="field">
         Trabajo y observaciones finales
         <textarea name="notes" maxLength={2000} rows={3} />
+      </label>
+      <label className="field">
+        <span>
+          <input type="checkbox" name="authorizeCirculation" /> Autorizar
+          circulación
+        </span>
+        <small>
+          Sin marcar: queda no autorizada. Otra orden en curso impide
+          autorizarla.
+        </small>
       </label>
       <div className="modal-actions">
         <button type="submit" className="button primary">
@@ -868,7 +908,7 @@ function MaterialsForm({
                         aria-label={`${field === "delivered" ? "Entregada" : "Devuelta"} ${product?.name}`}
                         type="number"
                         required
-                        min={original[field]}
+                        min={0}
                         step={product?.unit === "pza" ? "1" : "0.001"}
                         value={Number.isFinite(row[field]) ? row[field] : ""}
                         onChange={(event) =>

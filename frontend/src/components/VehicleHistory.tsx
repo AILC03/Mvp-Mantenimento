@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowLeft,
   Check,
@@ -16,6 +17,8 @@ import {
 } from "../data";
 import {
   addDamage,
+  addPastRepair,
+  damageKindLabel,
   correctCaf,
   currentOdometer,
   fleetRecords,
@@ -48,6 +51,7 @@ export function VehicleHistory({
   onCommit,
   onBack,
   onOpenOrder,
+  onCreateOrder,
 }: {
   vehicle: Vehicle;
   user: AuthUser;
@@ -56,6 +60,7 @@ export function VehicleHistory({
   onCommit: CommitWorkbench;
   onBack: () => void;
   onOpenOrder: (id: string) => void;
+  onCreateOrder?: (incident: IncidentView) => void;
 }) {
   const [tripLoad] = useState(() => {
     try {
@@ -71,7 +76,7 @@ export function VehicleHistory({
     }
   });
   const [dialog, setDialog] = useState<
-    "caf" | "damage" | "request" | "resolve" | null
+    "caf" | "damage" | "request" | "resolve" | "past" | null
   >(null);
   const [incident, setIncident] = useState<IncidentView | null>(null);
   const [error, setError] = useState("");
@@ -85,6 +90,25 @@ export function VehicleHistory({
   const incidents = vehicleIncidents(vehicle.id, data, tripLoad.cases);
   const jobs = fleet.reviewJobs.filter((job) => job.busId === vehicle.id);
   const timeline: HistoryRow<ReactNode>[] = [];
+  for (const repair of (fleet.pastRepairs ?? []).filter(
+    (r) => r.busId === vehicle.id,
+  ))
+    timeline.push({
+      id: `past:${repair.id}`,
+      category: "Servicios",
+      status: "Realizado",
+      types: ["Reparación anterior"],
+      actor: repair.actorName,
+      date: repair.date,
+      at: repair.recordedAt,
+      title: repair.description,
+      body: (
+        <p>
+          {repair.responsible} · {currency(repair.cost)} · Capturado por{" "}
+          {repair.actorName}
+        </p>
+      ),
+    });
   for (const record of (data.externalServices ?? []).filter(
     (item) => item.busId === vehicle.id,
   ))
@@ -366,17 +390,17 @@ export function VehicleHistory({
   ))
     timeline.push({
       id: damage.id,
-      category: "Incidencias",
+      category: "Fallas",
       status: incidents.find(
         (incident) => incident.sourceId === `damage:${damage.id}`,
       )?.resolution
         ? "Reparada"
         : "No reparada",
-      types: [damage.kind],
+      types: [damageKindLabel(damage.kind)],
       actor: damage.actorName,
       date: damage.date,
       at: damage.recordedAt,
-      title: `${damage.kind} registrado · ${damage.area}`,
+      title: `${damageKindLabel(damage.kind)} ${damage.kind === "Golpe" ? "registrado" : "registrada"} · ${damage.area}${damage.responsible ? ` · Responsable: ${damage.responsible}` : ""}`,
       body: (
         <>
           <p>{damage.description}</p>
@@ -424,7 +448,7 @@ export function VehicleHistory({
     timeline.push({
       id: `incident:${item.sourceId}`,
       at: item.date,
-      category: "Incidencias",
+      category: "Fallas",
       status: item.resolution ? "Reparada" : "No reparada",
       types: [trip?.template?.name ?? job?.template.name ?? item.source],
       actor: trip?.driverName ?? job?.completion?.actorName ?? "No registrado",
@@ -453,6 +477,14 @@ export function VehicleHistory({
     ...new Set(categoryRows.flatMap((row) => row.types)),
   ].sort();
   const visibleHistory = filterHistory(timeline, historyFilters);
+  useEffect(() => {
+    const after = () => document.body.classList.remove("printing-requisition");
+    window.addEventListener("afterprint", after);
+    return () => {
+      window.removeEventListener("afterprint", after);
+      after();
+    };
+  }, []);
   function open(kind: NonNullable<typeof dialog>) {
     setDialog(kind);
     setError("");
@@ -467,6 +499,101 @@ export function VehicleHistory({
   }
   return (
     <>
+      <div className="order-actions">
+        <button
+          className="button secondary"
+          onClick={() => {
+            document.body.classList.add("printing-requisition");
+            try {
+              window.print();
+            } catch {
+              document.body.classList.remove("printing-requisition");
+              setError("No se pudo abrir la impresión.");
+            }
+          }}
+        >
+          Imprimir historial de la unidad
+        </button>
+        <button className="button secondary" onClick={() => open("past")}>
+          Registrar reparación anterior
+        </button>
+      </div>
+      {dialog === "past" && (
+        <Modal
+          title="Registrar reparación anterior"
+          onClose={() => setDialog(null)}
+        >
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              const fields = new FormData(event.currentTarget);
+              void commit(
+                (current) =>
+                  addPastRepair(current, user, vehicle.id, {
+                    date: String(fields.get("date")),
+                    description: String(fields.get("description")),
+                    responsible: String(fields.get("responsible")),
+                    cost: Number(fields.get("cost")),
+                  }),
+                "Reparación anterior registrada sin modificar órdenes ni almacén.",
+              );
+            }}
+          >
+            {error && (
+              <p className="notice error" role="alert">
+                {error}
+              </p>
+            )}
+            <label className="field">
+              Fecha de reparación
+              <input type="date" name="date" required max={dateToday()} />
+            </label>
+            <label className="field">
+              Trabajo realizado
+              <textarea name="description" required maxLength={4000} />
+            </label>
+            <label className="field">
+              Responsable de reparación
+              <input name="responsible" required maxLength={150} />
+            </label>
+            <label className="field">
+              Costo histórico (MXN)
+              <input
+                name="cost"
+                required
+                type="number"
+                min="0"
+                max="1000000000"
+                step="0.01"
+              />
+            </label>
+            <button className="button primary">
+              Guardar reparación anterior
+            </button>
+          </form>
+        </Modal>
+      )}
+      {createPortal(
+        <section className="requisition-sheet">
+          <h1>Real Ejecutivo · Historial de unidad {vehicle.fleetNumber}</h1>
+          <p>
+            {vehicleTypeLabel(vehicle.type)} · {vehicle.model} · VIN:{" "}
+            {vehicle.vin}
+          </p>
+          {visibleHistory.map((row) => (
+            <article key={row.id}>
+              <h2>
+                {historyDate(row)} · {row.title}
+              </h2>
+              <p>
+                {row.category} · {row.status} · {row.actor}
+              </p>
+              {row.body}
+            </article>
+          ))}
+        </section>,
+        document.body,
+      )}
       <section className="card vehicle-dossier">
         <div className="section-heading">
           <div>
@@ -527,7 +654,7 @@ export function VehicleHistory({
               )[0];
             const interval =
               catalogs.reviews.find((item) => item.id === type)?.intervalDays ??
-              (type === "general" ? 45 : 90);
+              (type === "general" ? 30 : 90);
             const days = last
               ? remainingDays(last.completion!.date, interval)
               : null;
@@ -560,7 +687,7 @@ export function VehicleHistory({
         <div className="order-actions">
           <button className="button secondary" onClick={() => open("damage")}>
             <Plus size={15} />
-            Registrar golpe o incidencia
+            Registrar golpe o falla
           </button>
           {user.role === "ADMIN" && (
             <>
@@ -579,10 +706,10 @@ export function VehicleHistory({
           <p>{vehicle.note || "Sin observaciones de ficha."}</p>
           <small>
             Este texto heredado no se cambia automáticamente al reparar una
-            incidencia.
+            falla.
           </small>
         </div>
-        <h3>Golpes e incidencias: reparadas y no reparadas</h3>
+        <h3>Golpes y fallas: reparadas y no reparadas</h3>
         <div className="request-filters">
           {[
             ["all", "Todas"],
@@ -600,7 +727,7 @@ export function VehicleHistory({
         </div>
         {!incidents.length && (
           <p className="no-results">
-            No hay incidencias estructuradas registradas. Consulta también las
+            No hay fallas estructuradas registradas. Consulta también las
             observaciones heredadas de la ficha.
           </p>
         )}
@@ -638,15 +765,25 @@ export function VehicleHistory({
                   </div>
                 </div>
               ) : (
-                <button
-                  className="text-button"
-                  onClick={() => {
-                    setIncident(item);
-                    open("resolve");
-                  }}
-                >
-                  Confirmar reparación
-                </button>
+                <>
+                  <button
+                    className="text-button"
+                    onClick={() => {
+                      setIncident(item);
+                      open("resolve");
+                    }}
+                  >
+                    Confirmar reparación
+                  </button>
+                  {onCreateOrder && (
+                    <button
+                      className="button secondary"
+                      onClick={() => onCreateOrder(item)}
+                    >
+                      Abrir orden por esta falla
+                    </button>
+                  )}
+                </>
               )}
             </article>
           ))}
@@ -674,7 +811,7 @@ export function VehicleHistory({
                   "Revisiones",
                   "Solicitudes",
                   "Materiales",
-                  "Incidencias",
+                  "Fallas",
                   "Reparaciones",
                   "Ajustes CAF",
                 ] as const
@@ -801,10 +938,19 @@ export function VehicleHistory({
                   <td>{item.title}</td>
                   <td>{item.actor}</td>
                   <td>
-                    <details className="history-table-details">
-                      <summary>Ver detalles</summary>
-                      {item.body}
-                    </details>
+                    {item.id.startsWith("order:") ? (
+                      <button
+                        className="text-button"
+                        onClick={() => onOpenOrder(item.id.slice(6))}
+                      >
+                        Ver detalles
+                      </button>
+                    ) : (
+                      <details className="history-table-details">
+                        <summary>Ver detalles</summary>
+                        {item.body}
+                      </details>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -915,10 +1061,7 @@ export function VehicleHistory({
         </Modal>
       )}
       {dialog === "damage" && (
-        <Modal
-          title="Registrar golpe o incidencia"
-          onClose={() => setDialog(null)}
-        >
+        <Modal title="Registrar golpe o falla" onClose={() => setDialog(null)}>
           <form
             onSubmit={(event) => {
               event.preventDefault();
@@ -926,12 +1069,13 @@ export function VehicleHistory({
               commit(
                 (latest) =>
                   addDamage(latest, user, vehicle.id, {
-                    kind: String(fields.get("kind")) as "Golpe" | "Incidencia",
+                    kind: String(fields.get("kind")) as "Golpe" | "Falla",
+                    responsible: String(fields.get("responsible") ?? ""),
                     area: String(fields.get("area") ?? ""),
                     description: String(fields.get("description") ?? ""),
                     date: String(fields.get("date")),
                   }),
-                "Incidencia registrada sin atribuir responsabilidad automáticamente.",
+                "Falla o golpe registrado directamente en la unidad.",
               );
             }}
           >
@@ -945,7 +1089,7 @@ export function VehicleHistory({
                 Tipo
                 <select name="kind">
                   <option>Golpe</option>
-                  <option>Incidencia</option>
+                  <option>Falla</option>
                 </select>
               </label>
               <label className="field">
@@ -963,6 +1107,10 @@ export function VehicleHistory({
                 <input name="area" required maxLength={150} />
               </label>
               <label className="field full">
+                Responsable del golpe o falla (si se conoce)
+                <input name="responsible" maxLength={150} />
+              </label>
+              <label className="field full">
                 Descripción
                 <textarea
                   name="description"
@@ -974,7 +1122,7 @@ export function VehicleHistory({
             </div>
             <div className="modal-actions">
               <button type="submit" className="button primary">
-                Guardar incidencia
+                Guardar falla o golpe
               </button>
             </div>
           </form>
@@ -982,7 +1130,7 @@ export function VehicleHistory({
       )}
       {dialog === "resolve" && incident && (
         <Modal
-          title="Confirmar reparación de incidencia"
+          title="Confirmar reparación de falla"
           onClose={() => setDialog(null)}
         >
           <form

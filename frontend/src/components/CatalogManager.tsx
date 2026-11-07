@@ -26,6 +26,7 @@ import {
   saveService,
   saveVehicle,
   stock,
+  loadCatalogs,
   type Catalogs,
   type CatalogSection,
   type EntryInput,
@@ -35,6 +36,7 @@ import {
 import { Modal } from "./Modal";
 import { MaterialPicker } from "./MaterialPicker";
 import { QuantityStepper } from "./QuantityStepper";
+import { WorkshopCatalogs } from "./WorkshopCatalogs";
 
 export type CommitCatalogs = (
   update: (data: Catalogs) => Catalogs,
@@ -50,12 +52,18 @@ const titles = {
   vehicles: "Unidades",
   services: "Tipos de servicio",
   reviews: "Tipos de revisión",
+  employees: "Empleados del taller",
+  providers: "Proveedores",
+  parts: "Piezas por unidad",
 };
 const addLabels = {
   materials: "Nuevo artículo",
   vehicles: "Nueva unidad",
   services: "Nuevo tipo de servicio",
   reviews: "Nuevo tipo de revisión",
+  employees: "Nuevo empleado",
+  providers: "Nuevo proveedor",
+  parts: "Nueva pieza",
 };
 
 function FormError({ message }: { message: string }) {
@@ -110,6 +118,15 @@ export function CatalogManager({
     value.toLocaleLowerCase("es").includes(search.toLocaleLowerCase("es"));
   const close = () => setEditor(null);
   const selectedProduct = data.products.find((item) => item.id === editor?.id);
+  if (section === "employees" || section === "providers" || section === "parts")
+    return (
+      <WorkshopCatalogs
+        section={section}
+        data={data}
+        onCommit={onCommit}
+        canEdit={canEdit}
+      />
+    );
   const count =
     section === "materials"
       ? data.products.length
@@ -554,9 +571,17 @@ function EntryFields({
         Proveedor
         <input
           name="supplier"
+          list="material-providers"
           maxLength={150}
           placeholder="Nombre del proveedor (opcional)"
         />
+        <datalist id="material-providers">
+          {loadCatalogs()
+            .providers.filter((p) => p.kind !== "service")
+            .map((p) => (
+              <option key={p.id} value={p.name} />
+            ))}
+        </datalist>
       </label>
       <label className="field full">
         Referencia del comprobante
@@ -605,6 +630,14 @@ function ProductEditor({
             name: text(fields, "name"),
             description: text(fields, "description"),
             unit: text(fields, "unit") as Product["unit"],
+            minStock:
+              text(fields, "minStock") === ""
+                ? null
+                : Number(text(fields, "minStock")),
+            maxStock:
+              text(fields, "maxStock") === ""
+                ? null
+                : Number(text(fields, "maxStock")),
           },
           product
             ? {
@@ -631,6 +664,26 @@ function ProductEditor({
       </p>
       <FormError message={error} />
       <div className="field-grid">
+        <label className="field">
+          Stock mínimo (opcional)
+          <input
+            name="minStock"
+            type="number"
+            min="0"
+            step={unit === "pza" ? "1" : "any"}
+            defaultValue={product?.minStock ?? ""}
+          />
+        </label>
+        <label className="field">
+          Stock máximo (opcional)
+          <input
+            name="maxStock"
+            type="number"
+            min="0"
+            step={unit === "pza" ? "1" : "any"}
+            defaultValue={product?.maxStock ?? ""}
+          />
+        </label>
         <label className="field">
           Código del artículo *
           <input
@@ -812,15 +865,18 @@ function VehicleEditor({
           <input name="plate" maxLength={30} defaultValue={vehicle?.plate} />
         </label>
         <label className="field full">
-          VIN / número de serie
+          VIN / número de serie *
           <input
             name="vin"
+            required
             maxLength={17}
             minLength={17}
             defaultValue={vehicle?.vin}
           />
           <small>
-            Opcional. Si se captura, debe tener 17 caracteres válidos.
+            Obligatorio: 17 caracteres, sin I, O ni Q. En unidades anteriores
+            puede ser un VIN ficticio generado para el MVP; verifica el real
+            antes de uso definitivo.
           </small>
         </label>
         <label className="field">
@@ -843,7 +899,7 @@ function VehicleEditor({
             defaultValue={vehicle?.note}
           />
           <small>
-            Estas observaciones no sustituyen las incidencias ni una decisión
+            Estas observaciones no sustituyen las fallas ni una decisión
             técnica.
           </small>
         </label>

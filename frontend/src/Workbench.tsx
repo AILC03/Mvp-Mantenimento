@@ -42,7 +42,6 @@ import {
   isOrderForm,
   maintenanceLabel,
   materialTotal,
-  technicians,
   validateOrder,
   type OrderForm,
   type OrderService,
@@ -79,9 +78,27 @@ import { CirculationSummary } from "./components/UnitRecords";
 import { PeriodicReviews } from "./components/PeriodicReviews";
 import { availableStock } from "./orders";
 import { MaterialPicker } from "./components/MaterialPicker";
+import { DriverReports } from "./components/DriverReports";
+import { OrderExtras } from "./components/OrderExtras";
+import { WorkshopCatalogs } from "./components/WorkshopCatalogs";
+import { UnitInventory } from "./components/UnitInventory";
+import { applyCommand } from "../../shared/src/operations";
+import { loadTripCases } from "./trip-reviews";
 
 const DRAFT_KEY = "real-ejecutivo.demo.draft.v1";
 const catalogPages = {
+  employees: {
+    title: "Empleados del taller",
+    description: "Personal del taller, sin crear cuentas de acceso.",
+  },
+  providers: {
+    title: "Proveedores",
+    description: "Empresas y personas proveedoras de servicios y materiales.",
+  },
+  parts: {
+    title: "Piezas por unidad",
+    description: "Números de parte y compatibilidad con una o más unidades.",
+  },
   materials: {
     title: "Artículos de almacén",
     description:
@@ -122,6 +139,8 @@ export default function Workbench({
     | "trip-reviews"
     | "new-service"
     | "vehicle-history"
+    | "report-damage"
+    | "record-external"
     | CatalogSection
   >(user.role === "WAREHOUSE_CLERK" ? "materials" : "requests");
   const role =
@@ -181,12 +200,16 @@ export default function Workbench({
   );
   const canSeeCatalog = (section: CatalogSection) =>
     role === "admin" ||
-    (role === "warehouse" && section === "materials") ||
-    (role === "mechanic" && (section === "vehicles" || section === "services"));
+    (role === "warehouse" && ["materials", "providers"].includes(section)) ||
+    (role === "mechanic" &&
+      ["vehicles", "services", "employees", "providers", "parts"].includes(
+        section,
+      ));
   const canEditCatalog = (section: CatalogSection) =>
     role === "admin" ||
-    (role === "warehouse" && section === "materials") ||
-    (role === "mechanic" && section === "services");
+    (role === "warehouse" && ["materials", "providers"].includes(section)) ||
+    (role === "mechanic" &&
+      ["services", "employees", "providers", "parts"].includes(section));
   const orders = workbench.orders;
   const sourceRequest = workbench.requests.find(
     (request) => request.id === form.sourceRequestId,
@@ -197,6 +220,9 @@ export default function Workbench({
     "catalog" | "preview" | "history" | "cancel" | "report" | null
   >(null);
   const [query, setQuery] = useState("");
+  const [quickCatalog, setQuickCatalog] = useState<
+    "employees" | "providers" | null
+  >(null);
   const [serviceOrigin, setServiceOrigin] = useState<{ token: string } | null>(
     null,
   );
@@ -263,6 +289,8 @@ export default function Workbench({
 
   useEffect(() => {
     document.title = `${view === "vehicle-history" ? "Historial de unidad" : view === "trip-reviews" ? "Revisiones" : view === "new-service" ? "Nuevo tipo de servicio" : catalogSection ? catalogPages[catalogSection].title : view === "requests" ? "Solicitudes de servicio" : view === "create" ? "Nueva orden" : "Órdenes de trabajo"} · Real Ejecutivo`;
+    if (view === "report-damage" || view === "record-external")
+      document.title = `${view === "report-damage" ? "Reportar falla o golpe" : "Registrar servicio externo"} · Real Ejecutivo`;
   }, [view]);
 
   function update<K extends keyof OrderForm>(field: K, value: OrderForm[K]) {
@@ -576,7 +604,8 @@ export default function Workbench({
   }
 
   const commitCatalogs: CommitCatalogs = async (updateCatalogs, message) => {
-    const target = view === "new-service" ? "services" : catalogSection;
+    const target =
+      quickCatalog ?? (view === "new-service" ? "services" : catalogSection);
     if (!target || !canEditCatalog(target))
       return "Tu perfil no puede modificar este catálogo. Solo admin edita unidades y tipos de revisión.";
     try {
@@ -598,6 +627,7 @@ export default function Workbench({
       await persistWorkbench(next);
       setWorkbench(loadWorkbench());
       setMessage(success);
+      setCatalogData(loadCatalogs());
       return null;
     } catch (error) {
       return error instanceof Error
@@ -608,6 +638,19 @@ export default function Workbench({
 
   return (
     <div className="app-shell visual-refresh" data-page={view}>
+      {quickCatalog && (
+        <Modal
+          title="Alta rápida sin perder la orden"
+          onClose={() => setQuickCatalog(null)}
+        >
+          <WorkshopCatalogs
+            section={quickCatalog}
+            data={catalogData}
+            canEdit={canManageWork}
+            onCommit={commitCatalogs}
+          />
+        </Modal>
+      )}
       <a className="skip-link" href="#main-content">
         Saltar al contenido principal
       </a>
@@ -659,6 +702,32 @@ export default function Workbench({
         </div>
         <span className="nav-label">ESPACIO DE TRABAJO</span>
         <nav aria-label="Navegación principal">
+          {role === "driver" && (
+            <>
+              <button
+                className={`nav-item ${view === "report-damage" ? "active" : ""}`}
+                aria-current={view === "report-damage" ? "page" : undefined}
+                onClick={() => {
+                  setView("report-damage");
+                  setMobileNav(false);
+                  setMessage("");
+                }}
+              >
+                <TriangleAlert size={18} /> Reportar falla
+              </button>
+              <button
+                className={`nav-item ${view === "record-external" ? "active" : ""}`}
+                aria-current={view === "record-external" ? "page" : undefined}
+                onClick={() => {
+                  setView("record-external");
+                  setMobileNav(false);
+                  setMessage("");
+                }}
+              >
+                <Wrench size={18} /> Registrar servicio externo
+              </button>
+            </>
+          )}
           <span className="nav-item disabled" aria-disabled="true">
             <LayoutDashboard size={18} aria-hidden="true" /> Resumen{" "}
             <small>Próximamente</small>
@@ -719,6 +788,9 @@ export default function Workbench({
                 ["materials", "Artículos de almacén", Package],
                 ["services", "Tipos de servicio", Wrench],
                 ["reviews", "Tipos de revisión", CheckCheck],
+                ["employees", "Empleados del taller", Wrench],
+                ["providers", "Proveedores", Package],
+                ["parts", "Piezas por unidad", Wrench],
               ] as const
             )
               .filter(([section]) => canSeeCatalog(section))
@@ -789,17 +861,21 @@ export default function Workbench({
             <span>Mantenimiento</span>
             <ChevronRight size={13} aria-hidden="true" />
             <strong>
-              {view === "vehicle-history"
-                ? "Historial de unidad"
-                : view === "trip-reviews"
-                  ? "Revisiones"
-                  : view === "new-service"
-                    ? "Nuevo tipo de servicio"
-                    : catalogSection
-                      ? catalogPages[catalogSection].title
-                      : view === "requests"
-                        ? "Solicitudes de servicio"
-                        : "Órdenes de trabajo"}
+              {view === "report-damage"
+                ? "Reportar falla o golpe"
+                : view === "record-external"
+                  ? "Registrar servicio externo"
+                  : view === "vehicle-history"
+                    ? "Historial de unidad"
+                    : view === "trip-reviews"
+                      ? "Revisiones"
+                      : view === "new-service"
+                        ? "Nuevo tipo de servicio"
+                        : catalogSection
+                          ? catalogPages[catalogSection].title
+                          : view === "requests"
+                            ? "Solicitudes de servicio"
+                            : "Órdenes de trabajo"}
             </strong>
           </div>
           <div className="topbar-actions">
@@ -831,38 +907,46 @@ export default function Workbench({
             <div>
               <div className="eyebrow">GESTIÓN DEL TALLER</div>
               <h1>
-                {view === "vehicle-history"
-                  ? "Historial completo de la unidad"
-                  : view === "trip-reviews"
-                    ? "Revisiones"
-                    : view === "new-service"
-                      ? "Nuevo tipo de servicio"
-                      : catalogSection
-                        ? catalogPages[catalogSection].title
-                        : view === "requests"
-                          ? role === "driver"
-                            ? "Solicitar un servicio"
-                            : "Solicitudes de servicio"
-                          : view === "create"
-                            ? "Nueva orden de mantenimiento"
-                            : "Órdenes de trabajo"}
+                {view === "report-damage"
+                  ? "Reportar falla o golpe"
+                  : view === "record-external"
+                    ? "Registrar servicio externo"
+                    : view === "vehicle-history"
+                      ? "Historial completo de la unidad"
+                      : view === "trip-reviews"
+                        ? "Revisiones"
+                        : view === "new-service"
+                          ? "Nuevo tipo de servicio"
+                          : catalogSection
+                            ? catalogPages[catalogSection].title
+                            : view === "requests"
+                              ? role === "driver"
+                                ? "Solicitar un servicio"
+                                : "Solicitudes de servicio"
+                              : view === "create"
+                                ? "Nueva orden de mantenimiento"
+                                : "Órdenes de trabajo"}
               </h1>
               <p>
-                {view === "vehicle-history"
-                  ? "Servicios, revisiones, golpes, incidencias y costos registrados."
-                  : view === "trip-reviews"
-                    ? "Un caso por viaje: captura pre y post trip, revisión y cierre con historial."
-                    : view === "new-service"
-                      ? "Crea el servicio que falta sin perder la orden en la que estabas trabajando."
-                      : catalogSection
-                        ? catalogPages[catalogSection].description
-                        : view === "requests"
-                          ? role === "driver"
-                            ? "Reporta lo que necesita atención. El mecánico revisará tu solicitud."
-                            : "Del reporte del chofer a una decisión clara para el taller."
-                          : view === "create"
-                            ? "Planifica el trabajo y prepara todo lo que tu equipo necesita."
-                            : "El trabajo del taller, organizado por unidad."}
+                {view === "report-damage"
+                  ? "Registro directo en la unidad; el mecánico lo atiende después, sin aprobación previa."
+                  : view === "record-external"
+                    ? "Registra el trabajo realizado fuera del taller, prestador y costos."
+                    : view === "vehicle-history"
+                      ? "Servicios, revisiones, golpes, fallas y costos registrados."
+                      : view === "trip-reviews"
+                        ? "Un caso por viaje: captura pre y post trip, revisión y cierre con historial."
+                        : view === "new-service"
+                          ? "Crea el servicio que falta sin perder la orden en la que estabas trabajando."
+                          : catalogSection
+                            ? catalogPages[catalogSection].description
+                            : view === "requests"
+                              ? role === "driver"
+                                ? "Reporta lo que necesita atención. El mecánico revisará tu solicitud."
+                                : "Del reporte del chofer a una decisión clara para el taller."
+                              : view === "create"
+                                ? "Planifica el trabajo y prepara todo lo que tu equipo necesita."
+                                : "El trabajo del taller, organizado por unidad."}
               </p>
             </div>
             <span className="heading-icon" aria-hidden="true">
@@ -905,21 +989,72 @@ export default function Workbench({
               {initialWorkbench.error}
             </div>
           )}
-          {view === "vehicle-history" &&
-          canManageWork &&
-          buses.find((vehicle) => vehicle.id === vehicleId) ? (
-            <VehicleHistory
-              vehicle={buses.find((vehicle) => vehicle.id === vehicleId)!}
+          {(view === "report-damage" || view === "record-external") &&
+          role === "driver" ? (
+            <DriverReports
+              key={view}
+              mode={view === "report-damage" ? "damage" : "external"}
               user={user}
+              vehicles={buses}
               data={workbench}
-              catalogs={catalogData}
               onCommit={commitWorkbench}
-              onBack={() => setView("vehicles")}
-              onOpenOrder={(id) => {
-                setFocusedOrderId(id);
-                setView("orders");
-              }}
             />
+          ) : view === "vehicle-history" &&
+            canManageWork &&
+            buses.find((vehicle) => vehicle.id === vehicleId) ? (
+            <>
+              <UnitInventory
+                key={vehicleId}
+                vehicleId={vehicleId}
+                catalogs={catalogData}
+                user={user}
+                data={workbench}
+                onCommit={commitWorkbench}
+              />
+              <VehicleHistory
+                vehicle={buses.find((vehicle) => vehicle.id === vehicleId)!}
+                user={user}
+                data={workbench}
+                catalogs={catalogData}
+                onCommit={commitWorkbench}
+                onBack={() => setView("vehicles")}
+                onOpenOrder={(id) => {
+                  setFocusedOrderId(id);
+                  setView("orders");
+                }}
+                onCreateOrder={(incident) => {
+                  const unit = buses.find((v) => v.id === incident.busId)!;
+                  setForm({
+                    ...emptyForm(),
+                    busId: incident.busId,
+                    sourceIncidentId: incident.sourceId,
+                    odometer: String(unit.odometer),
+                    reason:
+                      `${incident.source} · ${incident.title}\n${incident.notes}`.slice(
+                        0,
+                        2000,
+                      ),
+                    services: [
+                      {
+                        id: crypto.randomUUID(),
+                        catalogId: "",
+                        name: incident.title.slice(0, 150),
+                        category: "Correctivo",
+                        hours: 1,
+                        assignee: "",
+                        instructions: incident.notes,
+                        materials: [],
+                      },
+                    ],
+                  });
+                  setView("create");
+                  setErrors([]);
+                  setMessage(
+                    "Orden preparada desde la falla. El reporte original se conserva; guarda la orden para crearla.",
+                  );
+                }}
+              />
+            </>
           ) : view === "trip-reviews" && role !== "warehouse" ? (
             <>
               {role === "mechanic" && (
@@ -934,6 +1069,25 @@ export default function Workbench({
                 user={user}
                 vehicles={buses}
                 templates={catalogData.reviews}
+                onDerive={async (command) =>
+                  commitWorkbench(
+                    (workbench) =>
+                      track(
+                        applyCommand(
+                          {
+                            catalogs: loadCatalogs(),
+                            workbench,
+                            trips: loadTripCases(),
+                          },
+                          user,
+                          command,
+                          workbench.requests.length + 1,
+                        ).workbench,
+                        command,
+                      ),
+                    "Acción de falla registrada.",
+                  )
+                }
               />
             </>
           ) : view === "new-service" && canManageWork && serviceOrigin ? (
@@ -1205,6 +1359,17 @@ export default function Workbench({
                         <small>Opcional. Puedes programarla después.</small>
                       </label>
                       <label className="field">
+                        Fecha estimada de término *
+                        <input
+                          type="date"
+                          required
+                          value={form.estimatedEndDate ?? ""}
+                          onChange={(event) =>
+                            update("estimatedEndDate", event.target.value)
+                          }
+                        />
+                      </label>
+                      <label className="field">
                         Odómetro actual <span className="required">*</span>
                         <div className="input-suffix">
                           <input
@@ -1229,6 +1394,12 @@ export default function Workbench({
                     </div>
                   </section>
 
+                  <OrderExtras
+                    form={form}
+                    catalogs={catalogData}
+                    onChange={setForm}
+                    onQuickAdd={setQuickCatalog}
+                  />
                   <section className="card">
                     <div className="section-heading">
                       <span className="step-number">02</span>
@@ -1244,6 +1415,27 @@ export default function Workbench({
                         </p>
                       </div>
                     </div>
+                    <button
+                      type="button"
+                      className="button secondary"
+                      onClick={() =>
+                        update("services", [
+                          ...form.services,
+                          {
+                            id: crypto.randomUUID(),
+                            catalogId: "",
+                            name: "Nuevo correctivo",
+                            category: "Correctivo",
+                            hours: 1,
+                            assignee: "",
+                            instructions: "",
+                            materials: [],
+                          },
+                        ])
+                      }
+                    >
+                      Agregar correctivo de texto libre
+                    </button>
                     {form.services.length === 0 ? (
                       <div className="services-empty">
                         <span className="empty-icon">
@@ -1299,6 +1491,22 @@ export default function Workbench({
                               </button>
                             </div>
                             <div className="field-grid">
+                              {service.catalogId === "" && (
+                                <label className="field full">
+                                  Servicio correctivo
+                                  <input
+                                    aria-label="Descripción del correctivo"
+                                    required
+                                    maxLength={150}
+                                    value={service.name}
+                                    onChange={(e) =>
+                                      updateService(service.id, {
+                                        name: e.target.value,
+                                      })
+                                    }
+                                  />
+                                </label>
+                              )}
                               <label className="field">
                                 Responsable
                                 <select
@@ -1310,9 +1518,15 @@ export default function Workbench({
                                   }
                                 >
                                   <option value="">Por asignar</option>
-                                  {technicians.map((name) => (
-                                    <option key={name}>{name}</option>
-                                  ))}
+                                  {catalogData.employees
+                                    .filter((e) => e.active !== false)
+                                    .map(
+                                      (employee) =>
+                                        `${employee.name} · ${employee.position}`,
+                                    )
+                                    .map((name) => (
+                                      <option key={name}>{name}</option>
+                                    ))}
                                 </select>
                               </label>
                               <label className="field">
@@ -1859,7 +2073,7 @@ export default function Workbench({
               <small>Lectura registrada</small>
             </div>
           </div>
-          <h3>Incidencias conocidas</h3>
+          <h3>Fallas conocidas</h3>
           <p>{bus.note}</p>
           <div className="modal-note">
             <ShieldCheck size={18} /> Disponibilidad técnica sin verificar. Este
