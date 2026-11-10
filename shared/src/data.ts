@@ -17,6 +17,8 @@ export const vehicleTypeLabel = (type: Vehicle["type"]) =>
   type === "truck" ? "Sprinter" : "Autobús";
 
 export type Product = {
+  minStock?: number | null;
+  maxStock?: number | null;
   id: string;
   sku: string;
   name: string;
@@ -35,6 +37,7 @@ export type StockEntry = {
   createdAt: string;
 };
 export type CatalogService = {
+  maintenanceType?: "preventive" | "corrective";
   id: string;
   name: string;
   category: string;
@@ -185,6 +188,8 @@ export type Material = {
   unitCost?: number;
 };
 export type OrderService = {
+  maintenanceType?: "preventive" | "corrective";
+  freeText?: boolean;
   id: string;
   catalogId: string;
   name: string;
@@ -195,6 +200,16 @@ export type OrderService = {
   materials: Material[];
 };
 export type OrderForm = {
+  assignee?: { kind: "employee" | "supplier"; id: string; name: string };
+  estimatedCompletion?: string;
+  orderedParts?: {
+    partId: string;
+    identifier: string;
+    name: string;
+    supplier: string;
+    quantity: number;
+    unitCost: number;
+  }[];
   busId: string;
   sourceRequestId?: string;
   priority: "Normal" | "Alta" | "Urgente";
@@ -218,6 +233,7 @@ export type OrderEvent = {
   notes: string;
 };
 export type MaterialConfirmation = {
+  correction?: boolean;
   id: string;
   at: string;
   actorId: string;
@@ -234,6 +250,19 @@ export type MaterialConfirmation = {
   }[];
 };
 export type SavedOrder = {
+  partConfirmations?: {
+    id: string;
+    at: string;
+    actorId: string;
+    actorName: string;
+    notes: string;
+    lines: {
+      partId: string;
+      received: number;
+      delivered: number;
+      returned: number;
+    }[];
+  }[];
   id: string;
   number: string;
   createdAt: string;
@@ -266,6 +295,37 @@ export const emptyForm = (): OrderForm => ({
 export function isOrderForm(value: unknown): value is OrderForm {
   if (!value || typeof value !== "object") return false;
   const form = value as Record<string, unknown>;
+  if (form.assignee !== undefined) {
+    const person = form.assignee as OrderForm["assignee"];
+    if (
+      !person ||
+      !["employee", "supplier"].includes(person.kind) ||
+      typeof person.id !== "string" ||
+      typeof person.name !== "string"
+    )
+      return false;
+  }
+  if (
+    form.estimatedCompletion !== undefined &&
+    typeof form.estimatedCompletion !== "string"
+  )
+    return false;
+  if (
+    form.orderedParts !== undefined &&
+    (!Array.isArray(form.orderedParts) ||
+      form.orderedParts.some(
+        (p) =>
+          !p ||
+          !["partId", "identifier", "name", "supplier"].every(
+            (k) => typeof p[k] === "string",
+          ) ||
+          !Number.isSafeInteger(p.quantity) ||
+          p.quantity <= 0 ||
+          !Number.isFinite(p.unitCost) ||
+          p.unitCost < 0,
+      ))
+  )
+    return false;
   return (
     typeof form.busId === "string" &&
     typeof form.reason === "string" &&
@@ -316,6 +376,12 @@ export function validateOrder(
   services: CatalogService[] = catalog,
 ): string[] {
   const errors: string[] = [];
+  if (
+    form.services.some(
+      (s) => s.freeText && (!s.name.trim() || !s.instructions.trim()),
+    )
+  )
+    errors.push("Describe el trabajo del correctivo libre.");
   if (!vehicles.some((bus) => bus.id === form.busId))
     errors.push("Selecciona una unidad.");
   if (form.reason.trim().length > 2000)
@@ -356,8 +422,15 @@ export function validateOrder(
     form.services.some((service) => {
       const definition = services.find((item) => item.id === service.catalogId);
       return (
-        !definition ||
-        (definition.compatibleVehicleIds.length > 0 &&
+        (!definition &&
+          !(
+            service.freeText &&
+            service.maintenanceType === "corrective" &&
+            service.name.trim() &&
+            service.instructions.trim()
+          )) ||
+        (definition &&
+          definition.compatibleVehicleIds.length > 0 &&
           !definition.compatibleVehicleIds.includes(form.busId))
       );
     })
@@ -370,19 +443,25 @@ export function validateOrder(
 
 export function maintenanceLabel(services: OrderService[]): string {
   if (!services.length) return "Por definir";
-  const hasCaf = services.some((service) => service.catalogId === "oil-change");
+  const hasCaf = services.some(
+    (service) =>
+      service.maintenanceType === "preventive" ||
+      (!service.maintenanceType && service.catalogId === "oil-change"),
+  );
   const hasCorrective = services.some(
-    (service) => service.catalogId !== "oil-change",
+    (service) =>
+      service.maintenanceType === "corrective" ||
+      (!service.maintenanceType && service.catalogId !== "oil-change"),
   );
   return hasCaf && hasCorrective
-    ? "CAF + correctivos"
+    ? "Preventivos + correctivos"
     : hasCaf
-      ? "Preventivo · CAF"
+      ? "Preventivo"
       : "Correctivo";
 }
 
 export const scheduledReviews = [
-  { name: "Revisión general", frequency: "Cada 45 días" },
+  { name: "Revisión general", frequency: "Cada 30 días" },
   { name: "Salidas de emergencia", frequency: "Cada 90 días" },
   { name: "Revisión anual", frequency: "Anual" },
   { name: "Revisión de viaje", frequency: "Cada viaje" },

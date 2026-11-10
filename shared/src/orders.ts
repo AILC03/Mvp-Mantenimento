@@ -1,6 +1,7 @@
 import type { AuthUser } from "./auth";
 import type { Product, SavedOrder } from "./data";
 import type { Workbench } from "./requests";
+import { decideCirculation, blockForOrder } from "./unit-records";
 
 export const managesOrders = (user: AuthUser) =>
   user.role === "ADMIN" || user.role === "LEAD_MECHANIC";
@@ -106,6 +107,25 @@ export function validOrderMetadata(order: SavedOrder): boolean {
   const number = (value: unknown): value is number =>
     typeof value === "number" && Number.isFinite(value) && value >= 0;
   if (
+    order.partConfirmations !== undefined &&
+    (!Array.isArray(order.partConfirmations) ||
+      order.partConfirmations.some(
+        (c) =>
+          !c ||
+          ![c.id, c.at, c.actorId, c.actorName, c.notes].every(text) ||
+          !Array.isArray(c.lines) ||
+          c.lines.some(
+            (l) =>
+              !l ||
+              typeof l.partId !== "string" ||
+              ![l.received, l.delivered, l.returned].every(
+                (n) => Number.isSafeInteger(n) && n >= 0,
+              ),
+          ),
+      ))
+  )
+    return false;
+  if (
     order.events !== undefined &&
     (!Array.isArray(order.events) ||
       order.events.some(
@@ -156,7 +176,9 @@ export function validOrderMetadata(order: SavedOrder): boolean {
             !line ||
             ![line.productId, line.name, line.sku].every(text) ||
             !["pza", "L"].includes(line.unit) ||
-            ![line.delivered, line.returned, line.unitCost].every(number) ||
+            ![line.delivered, line.unitCost].every(number) ||
+            !Number.isFinite(line.returned) ||
+            (line.returned < 0 && !event.correction) ||
             (line.unit === "pza" &&
               (!Number.isInteger(line.delivered) ||
                 !Number.isInteger(line.returned))),
@@ -165,7 +187,9 @@ export function validOrderMetadata(order: SavedOrder): boolean {
         return false;
     }
     if (
-      orderMaterials(order).some((row) => row.returned > row.delivered + 1e-6)
+      orderMaterials(order).some(
+        (row) => row.returned < -1e-6 || row.returned > row.delivered + 1e-6,
+      )
     )
       return false;
   }
@@ -229,7 +253,7 @@ export function changeOrder(
           : ("Reanudada" as const),
     notes: notes.trim(),
   };
-  return {
+  const next: Workbench = {
     ...data,
     orders: data.orders.map((item) =>
       item.id === id
@@ -237,6 +261,9 @@ export function changeOrder(
         : item,
     ),
   };
+  return action === "resume" || action === "start"
+    ? blockForOrder(next, user, order.form.busId, order.id)
+    : next;
 }
 
 export function finishOrder(
@@ -249,6 +276,7 @@ export function finishOrder(
     performedServiceIds: string[];
     unperformedReasons: Record<string, string>;
     notes: string;
+    authorizeCirculation?: boolean;
   },
 ): Workbench {
   if (!managesOrders(user))
@@ -260,6 +288,16 @@ export function finishOrder(
     throw new Error(
       "No puedes finalizar: almacén debe confirmar la entrega de cada material requerido. La entrega puede ser igual a la estimación.",
     );
+  for (const part of order.form.orderedParts ?? []) {
+    const lines =
+      order.partConfirmations
+        ?.flatMap((v) => v.lines)
+        .filter((v) => v.partId === part.partId) ?? [];
+    if (lines.reduce((n, v) => n + v.delivered - v.returned, 0) <= 0)
+      throw new Error(
+        "Almacén debe confirmar la entrega de cada pieza por pedido.",
+      );
+  }
   if (
     !validPastDate(input.date) ||
     !Number.isSafeInteger(input.odometer) ||
@@ -267,7 +305,9 @@ export function finishOrder(
   )
     throw new Error("Revisa la fecha de ejecución y el odómetro.");
   if (input.odometer < Number(order.form.odometer))
-    throw new Error(`El odómetro al terminar no puede ser menor al de apertura de esta orden (${order.form.odometer} km).`);
+    throw new Error(
+      `El odómetro al terminar no puede ser menor al de apertura de esta orden (${order.form.odometer} km).`,
+    );
   if (
     input.performedServiceIds.some(
       (serviceId) =>
@@ -293,7 +333,7 @@ export function finishOrder(
     actorName: user.name,
     recordedAt,
   };
-  return {
+  const next: Workbench = {
     ...data,
     orders: data.orders.map((item) =>
       item.id === id
@@ -316,6 +356,9 @@ export function finishOrder(
         : item,
     ),
   };
+  return input.authorizeCirculation
+    ? decideCirculation(next, user, order.form.busId, "authorized")
+    : next;
 }
 
 export function confirmMaterials(
@@ -353,13 +396,13 @@ export function confirmMaterials(
         throw new Error(
           "Usa cantidades no negativas; las piezas deben ser enteras.",
         );
-      if (
-        row.delivered < previous.delivered ||
-        row.returned < previous.returned ||
-        row.returned > row.delivered
-      )
+      if (row.delivered < previous.delivered || row.returned > row.delivered)
         throw new Error(
-          "Las cantidades son acumuladas: no pueden disminuir, ni devolver más de lo entregado.",
+          "La entrega acumulada no puede disminuir ni puedes devolver más de lo entregado.",
+        );
+      if (row.returned < previous.returned && !notes.trim())
+        throw new Error(
+          "Explica la corrección o recuperación de la devolución.",
         );
       const delivered = row.delivered - previous.delivered;
       const returned = row.returned - previous.returned;
@@ -386,6 +429,7 @@ export function confirmMaterials(
       "No hay cambios en las cantidades. No se descontó inventario otra vez.",
     );
   const confirmation = {
+    correction: lines.some((v) => v.returned < 0),
     id: crypto.randomUUID(),
     at: new Date().toISOString(),
     actorId: user.id,

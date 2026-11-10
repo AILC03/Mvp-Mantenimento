@@ -1,4 +1,8 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { createPortal, flushSync } from "react-dom";
+import { UnitEquipment } from "./UnitEquipment";
+import { CompleteOrder } from "./CompleteOrder";
+import { workshop } from "../../../shared/src/workshop";
 import {
   ArrowLeft,
   Check,
@@ -71,10 +75,13 @@ export function VehicleHistory({
     }
   });
   const [dialog, setDialog] = useState<
-    "caf" | "damage" | "request" | "resolve" | null
+    "caf" | "damage" | "request" | "resolve" | "detail" | null
   >(null);
   const [incident, setIncident] = useState<IncidentView | null>(null);
   const [error, setError] = useState("");
+  const [orderDetail, setOrderDetail] = useState("");
+  const [printing, setPrinting] = useState(false);
+  useEffect(() => () => document.body.classList.remove("printing-history"), []);
   const [filter, setFilter] = useState("all");
   const [historyFilters, setHistoryFilters] = useState(emptyHistoryFilters);
   const fleet = fleetRecords(data);
@@ -85,6 +92,52 @@ export function VehicleHistory({
   const incidents = vehicleIncidents(vehicle.id, data, tripLoad.cases);
   const jobs = fleet.reviewJobs.filter((job) => job.busId === vehicle.id);
   const timeline: HistoryRow<ReactNode>[] = [];
+  for (const h of workshop(data).historicalRepairs.filter(
+    (v) => v.busId === vehicle.id,
+  ))
+    timeline.push({
+      id: h.id,
+      category: "Reparaciones",
+      status: "Antecedente histórico",
+      types: ["Anterior al software"],
+      actor: h.actorName,
+      date: h.date,
+      at: h.recordedAt,
+      title: h.description,
+      body: (
+        <>
+          <p>
+            {h.description} · {h.provider} · {h.odometer ?? "Sin lectura"} km ·{" "}
+            {h.cost === null ? "Sin costo registrado" : currency(h.cost)}
+          </p>
+          <p>{h.notes}</p>
+          <small>
+            Capturó {h.actorName} ·{" "}
+            {new Date(h.recordedAt).toLocaleString("es-MX")}. Sin movimientos
+            operativos.
+          </small>
+        </>
+      ),
+    });
+  for (const m of workshop(data).articleMovements.filter(
+    (v) => v.busId === vehicle.id,
+  ))
+    timeline.push({
+      id: m.id,
+      category: "Materiales",
+      status: m.after < m.before ? "Faltante / retiro" : "Alta / recuperación",
+      types: ["Artículo de la unidad"],
+      actor: m.actorName,
+      at: m.at,
+      title: `${m.name}: ${m.before} → ${m.after}`,
+      body: (
+        <p>
+          {m.reason} · Viaje: {m.tripId ?? "No aplica"} · Etapa:{" "}
+          {m.stage ?? "Ficha"} · Chofer: {m.driverId ?? "No aplica"}. Registro
+          para consulta, sin cobro automático.
+        </p>
+      ),
+    });
   for (const record of (data.externalServices ?? []).filter(
     (item) => item.busId === vehicle.id,
   ))
@@ -121,7 +174,7 @@ export function VehicleHistory({
       id: `circulation:${decision.id}`,
       category: "Circulación",
       status: circulationLabels[decision.status],
-      types: ["Decisión explícita"],
+      types: [decision.orderId ? "Por orden" : "Decisión explícita"],
       actor: decision.actorName,
       at: decision.recordedAt,
       title: `Circulación · ${circulationLabels[decision.status]}`,
@@ -174,7 +227,10 @@ export function VehicleHistory({
                   {order.completion!.unperformedReasons[service.id]}
                 </p>
               ))}
-          <button className="text-button" onClick={() => onOpenOrder(order.id)}>
+          <button
+            className="text-button"
+            onClick={() => setOrderDetail(order.id)}
+          >
             Ver orden completa
           </button>
         </>
@@ -274,6 +330,12 @@ export function VehicleHistory({
                       </p>
                     ))}
                     <p>{item[stage]!.notes}</p>
+                    {item[stage]!.articles?.map((article) => (
+                      <p key={article.articleId}>
+                        {article.name} · {article.category}: {article.quantity}{" "}
+                        existentes (antes: {article.before})
+                      </p>
+                    ))}
                     <small>
                       {new Date(item[stage]!.submittedAt).toLocaleString(
                         "es-MX",
@@ -482,7 +544,7 @@ export function VehicleHistory({
             </p>
           </div>
           <span className="badge neutral">
-            Circulación sujeta a decisión explícita
+            Autorizar circulación requiere decisión explícita
           </span>
         </div>
         {tripLoad.error && (
@@ -496,10 +558,17 @@ export function VehicleHistory({
           data={data}
           onCommit={onCommit}
         />
+        <UnitEquipment
+          busId={vehicle.id}
+          data={data}
+          user={user}
+          catalogs={catalogs}
+          onCommit={onCommit}
+        />
         <p className="modal-description">
-          Se muestra el historial registrado en el servidor. No hay datos
-          históricos externos cargados ni telemetría; los faltantes aparecen
-          como «Sin registro».
+          Se muestra el historial del servidor. Las reparaciones anteriores al
+          software se identifican como antecedentes. No hay telemetría; los
+          datos faltantes aparecen como «Sin registro».
         </p>
         <div className="due-grid">
           <div>
@@ -527,7 +596,7 @@ export function VehicleHistory({
               )[0];
             const interval =
               catalogs.reviews.find((item) => item.id === type)?.intervalDays ??
-              (type === "general" ? 45 : 90);
+              (type === "general" ? 30 : 90);
             const days = last
               ? remainingDays(last.completion!.date, interval)
               : null;
@@ -560,7 +629,7 @@ export function VehicleHistory({
         <div className="order-actions">
           <button className="button secondary" onClick={() => open("damage")}>
             <Plus size={15} />
-            Registrar golpe o incidencia
+            Registrar golpe o falla
           </button>
           {user.role === "ADMIN" && (
             <>
@@ -582,7 +651,27 @@ export function VehicleHistory({
             incidencia.
           </small>
         </div>
-        <h3>Golpes e incidencias: reparadas y no reparadas</h3>
+        <h3>Trabajos pendientes de la unidad</h3>
+        {orders
+          .filter((o) => o.status !== "Finalizada")
+          .map((o) => (
+            <article className="incident-card" key={o.id}>
+              <strong>
+                {o.number} · {o.status}
+              </strong>
+              <p>
+                {o.form.services.map((s) => s.name).join(" · ")} · Responsable:{" "}
+                {o.form.assignee?.name || "Asignación histórica"} · Terminación
+                estimada: {o.form.estimatedCompletion || "Sin fecha"}
+              </p>
+              <button
+                className="text-button"
+                onClick={() => setOrderDetail(o.id)}
+              >
+                Ver orden completa
+              </button>
+            </article>
+          ))}
         <div className="request-filters">
           {[
             ["all", "Todas"],
@@ -624,7 +713,17 @@ export function VehicleHistory({
                   {item.source} · {item.date}
                 </small>
               </div>
-              <h4>{item.title}</h4>
+              <h4>
+                <button
+                  className="text-button"
+                  onClick={() => {
+                    setIncident(item);
+                    open("detail");
+                  }}
+                >
+                  {item.title}
+                </button>
+              </h4>
               <p>{item.notes}</p>
               {item.resolution ? (
                 <div className="modal-note">
@@ -651,6 +750,30 @@ export function VehicleHistory({
             </article>
           ))}
         <h3>Historial completo disponible</h3>
+        <button
+          className="button secondary"
+          onClick={() => {
+            flushSync(() => setPrinting(true));
+            document.body.classList.add("printing-history");
+            window.addEventListener(
+              "afterprint",
+              () => {
+                document.body.classList.remove("printing-history");
+                setPrinting(false);
+              },
+              { once: true },
+            );
+            try {
+              window.print();
+            } catch {
+              document.body.classList.remove("printing-history");
+              setPrinting(false);
+              setError("No se pudo abrir la impresión.");
+            }
+          }}
+        >
+          Imprimir historial completo (horizontal)
+        </button>
         <div className="history-filters">
           <label className="field">
             Categoría del historial
@@ -801,10 +924,19 @@ export function VehicleHistory({
                   <td>{item.title}</td>
                   <td>{item.actor}</td>
                   <td>
-                    <details className="history-table-details">
-                      <summary>Ver detalles</summary>
-                      {item.body}
-                    </details>
+                    {item.id.startsWith("order:") ? (
+                      <button
+                        className="text-button"
+                        onClick={() => setOrderDetail(item.id.slice(6))}
+                      >
+                        Ver detalles
+                      </button>
+                    ) : (
+                      <details className="history-table-details">
+                        <summary>Ver detalles</summary>
+                        {item.body}
+                      </details>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -829,6 +961,88 @@ export function VehicleHistory({
           </p>
         </div>
       </section>
+      {printing &&
+        createPortal(
+          <section className="history-print-sheet">
+            <h1>
+              Real Ejecutivo · Historial completo de {vehicle.fleetNumber}
+            </h1>
+            <p>
+              {vehicle.brand} {vehicle.model} · Placas {vehicle.plate} · VIN{" "}
+              {vehicle.vin || "Sin registro"} · Impreso {dateToday()}
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Categoría / estado</th>
+                  <th>Registro / responsable</th>
+                  <th>Detalle</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filterHistory(timeline, emptyHistoryFilters()).map((row) => (
+                  <tr key={row.id}>
+                    <td>{historyDate(row)}</td>
+                    <td>
+                      {row.category} · {row.status}
+                    </td>
+                    <td>
+                      {row.title} · {row.actor}
+                    </td>
+                    <td>
+                      {row.id.startsWith("order:") ? (
+                        <CompleteOrder
+                          order={orders.find((v) => v.id === row.id.slice(6))!}
+                          catalogs={catalogs}
+                          data={data}
+                        />
+                      ) : (
+                        row.body
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>,
+          document.body,
+        )}
+      {orderDetail && (
+        <Modal title="Orden completa" onClose={() => setOrderDetail("")}>
+          <CompleteOrder
+            order={orders.find((v) => v.id === orderDetail)!}
+            catalogs={catalogs}
+            data={data}
+          />
+          <button
+            className="button secondary"
+            onClick={() => {
+              setOrderDetail("");
+              onOpenOrder(orderDetail);
+            }}
+          >
+            Ir a operar la orden
+          </button>
+        </Modal>
+      )}
+      {dialog === "detail" && incident && (
+        <Modal
+          title="Estado de la unidad · Detalle"
+          onClose={() => setDialog(null)}
+        >
+          <h3>{incident.title}</h3>
+          <p>
+            {incident.source} · {incident.date}
+          </p>
+          <p>{incident.notes}</p>
+          <p>
+            {incident.resolution
+              ? `Reparada: ${incident.resolution.notes}`
+              : "Pendiente de reparación"}
+          </p>
+        </Modal>
+      )}
       {dialog === "caf" && (
         <Modal
           title="Corrección extraordinaria del último CAF"
@@ -915,10 +1129,7 @@ export function VehicleHistory({
         </Modal>
       )}
       {dialog === "damage" && (
-        <Modal
-          title="Registrar golpe o incidencia"
-          onClose={() => setDialog(null)}
-        >
+        <Modal title="Registrar golpe o falla" onClose={() => setDialog(null)}>
           <form
             onSubmit={(event) => {
               event.preventDefault();
@@ -926,7 +1137,8 @@ export function VehicleHistory({
               commit(
                 (latest) =>
                   addDamage(latest, user, vehicle.id, {
-                    kind: String(fields.get("kind")) as "Golpe" | "Incidencia",
+                    kind: String(fields.get("kind")) as "Golpe" | "Falla",
+                    responsible: String(fields.get("responsible") ?? ""),
                     area: String(fields.get("area") ?? ""),
                     description: String(fields.get("description") ?? ""),
                     date: String(fields.get("date")),
@@ -945,7 +1157,7 @@ export function VehicleHistory({
                 Tipo
                 <select name="kind">
                   <option>Golpe</option>
-                  <option>Incidencia</option>
+                  <option>Falla</option>
                 </select>
               </label>
               <label className="field">
@@ -963,6 +1175,14 @@ export function VehicleHistory({
                 <input name="area" required maxLength={150} />
               </label>
               <label className="field full">
+                Persona que causó el daño (si se conoce)
+                <input name="responsible" maxLength={150} />
+                <small>
+                  No se atribuye automáticamente al chofer ni al responsable de
+                  reparación.
+                </small>
+              </label>
+              <label className="field full">
                 Descripción
                 <textarea
                   name="description"
@@ -974,7 +1194,7 @@ export function VehicleHistory({
             </div>
             <div className="modal-actions">
               <button type="submit" className="button primary">
-                Guardar incidencia
+                Guardar reporte
               </button>
             </div>
           </form>
@@ -982,7 +1202,7 @@ export function VehicleHistory({
       )}
       {dialog === "resolve" && incident && (
         <Modal
-          title="Confirmar reparación de incidencia"
+          title="Confirmar reparación del golpe o falla"
           onClose={() => setDialog(null)}
         >
           <form

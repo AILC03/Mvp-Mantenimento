@@ -2,6 +2,7 @@ import type { AuthUser } from "./auth";
 import {
   addExternalService,
   decideCirculation,
+  blockForOrder,
   type ExternalServiceInput,
   type CirculationStatus,
 } from "./unit-records";
@@ -27,7 +28,12 @@ import {
   type Workbench,
   type RequestInput,
 } from "./requests";
-import { changeOrder, finishOrder, confirmMaterials } from "./orders";
+import {
+  changeOrder,
+  finishOrder,
+  confirmMaterials,
+  dateToday,
+} from "./orders";
 import {
   correctCaf,
   recordPeriodicReview,
@@ -48,7 +54,20 @@ export type OperationsState = {
   workbench: Workbench;
   trips: TripCase[];
 };
+import { changeWorkshop, workshop, type WorkshopChange } from "./workshop";
 export type Command =
+  | { type: "workshop.save"; change: WorkshopChange }
+  | {
+      type: "parts.confirm";
+      id: string;
+      lines: {
+        partId: string;
+        received: number;
+        delivered: number;
+        returned: number;
+      }[];
+      notes: string;
+    }
   | { type: "external.record"; vehicleId: string; input: ExternalServiceInput }
   | { type: "circulation.decide"; vehicleId: string; status: CirculationStatus }
   | {
@@ -136,6 +155,8 @@ export type Command =
       answers: Record<string, TripAnswer>;
       notes: string;
       templateId?: string;
+      articleCounts?: Record<string, number>;
+      faultActions?: Record<string, "report" | "request" | "damage">;
     }
   | { type: "trip.close"; id: string; notes: string }
   | { type: "draft.save"; form: OrderForm };
@@ -155,7 +176,12 @@ export function permitted(user: AuthUser, type: Command["type"]): boolean {
   if (user.role === "DRIVER")
     return ["request.create", "trip.start", "trip.submit"].includes(type);
   if (user.role === "WAREHOUSE_CLERK")
-    return ["product.save", "stock.add", "materials.confirm"].includes(type);
+    return [
+      "product.save",
+      "stock.add",
+      "materials.confirm",
+      "parts.confirm",
+    ].includes(type);
   if (user.role === "LEAD_MECHANIC")
     return [
       "service.save",
@@ -170,6 +196,7 @@ export function permitted(user: AuthUser, type: Command["type"]): boolean {
       "draft.save",
       "external.record",
       "circulation.decide",
+      "workshop.save",
     ].includes(type);
   return false;
 }
@@ -181,7 +208,13 @@ export function applyCommand(
 ): OperationsState {
   if (!permitted(user, command.type))
     throw new Error("Tu perfil no puede realizar esta operación.");
+  command = structuredClone(command);
   const next = structuredClone(state);
+  next.catalogs.reviews = next.catalogs.reviews.map((r) =>
+    r.id === "general" && r.intervalDays === 45
+      ? { ...r, intervalDays: 30, version: r.version + 1 }
+      : r,
+  );
   const c = next.catalogs;
   const vehicle = (id: string) => {
     const value = c.vehicles.find((v) => v.id === id);
@@ -206,6 +239,61 @@ export function applyCommand(
     }
   };
   switch (command.type) {
+    case "workshop.save":
+      next.workbench = changeWorkshop(
+        next.workbench,
+        user,
+        command.change,
+        c.vehicles.map((v) => v.id),
+      );
+      break;
+    case "parts.confirm": {
+      const order = next.workbench.orders.find((v) => v.id === command.id);
+      if (!order || order.status === "Finalizada")
+        throw new Error("Orden no disponible para movimientos de piezas.");
+      if (
+        !command.lines.length ||
+        new Set(command.lines.map((v) => v.partId)).size !==
+          command.lines.length
+      )
+        throw new Error("Revisa las piezas.");
+      for (const line of command.lines) {
+        if (
+          !order.form.orderedParts?.some((v) => v.partId === line.partId) ||
+          [line.received, line.delivered, line.returned].some(
+            (v) => !Number.isSafeInteger(v) || v < 0,
+          )
+        )
+          throw new Error("Pieza o cantidad inválida.");
+        const previous =
+          order.partConfirmations
+            ?.flatMap((v) => v.lines)
+            .filter((v) => v.partId === line.partId) ?? [];
+        const sum = (key: "received" | "delivered" | "returned") =>
+          previous.reduce((n, v) => n + v[key], 0) + line[key];
+        if (
+          sum("returned") > sum("delivered") ||
+          sum("delivered") - sum("returned") > sum("received")
+        )
+          throw new Error(
+            "Registra recepción antes de entregar y no devuelvas más de lo entregado.",
+          );
+      }
+      if (!command.lines.some((v) => v.received || v.delivered || v.returned))
+        throw new Error("Sin movimientos.");
+      order.partConfirmations = [
+        ...(order.partConfirmations ?? []),
+        {
+          id: crypto.randomUUID(),
+          at: new Date().toISOString(),
+          actorId: user.id,
+          actorName: user.name,
+          notes: command.notes,
+          lines: command.lines,
+        },
+      ];
+      break;
+    }
     case "external.record":
       vehicle(command.vehicleId);
       next.workbench = addExternalService(
@@ -255,6 +343,16 @@ export function applyCommand(
       if (errors.length) throw new Error(errors.join(" "));
       if (next.workbench.requests.some((r) => r.id === command.clientId))
         throw new Error("La solicitud ya existe.");
+      if (command.input.reportKind) {
+        vehicle(command.input.busId);
+        next.workbench = addDamage(next.workbench, user, command.input.busId, {
+          kind: command.input.reportKind,
+          area: command.input.title,
+          description: command.input.description,
+          date: dateToday(),
+        });
+        if (command.input.createServiceRequest === false) break;
+      }
       next.workbench.requests.unshift({
         ...command.input,
         title: command.input.title.trim(),
@@ -286,6 +384,58 @@ export function applyCommand(
         c.services,
       );
       if (errors.length) throw new Error(errors.join(" "));
+      const assignee = command.form.assignee;
+      if (!assignee)
+        throw new Error("Selecciona un responsable para toda la orden.");
+      const directory = workshop(next.workbench);
+      const person =
+        assignee.kind === "employee"
+          ? directory.employees.find((v) => v.id === assignee.id && v.active)
+          : directory.suppliers.find(
+              (v) => v.id === assignee.id && v.active && v.kind === "service",
+            );
+      if (!person) throw new Error("Responsable inexistente o inactivo.");
+      command.form.assignee = { ...assignee, name: person.name };
+      if (command.form.estimatedCompletion) {
+        const date = new Date(`${command.form.estimatedCompletion}T12:00:00Z`);
+        if (
+          !/^\d{4}-\d{2}-\d{2}$/.test(command.form.estimatedCompletion) ||
+          !Number.isFinite(date.getTime()) ||
+          date.toISOString().slice(0, 10) !== command.form.estimatedCompletion
+        )
+          throw new Error("Fecha estimada inválida.");
+      }
+      for (const p of command.form.orderedParts ?? []) {
+        const part = directory.parts.find(
+          (v) =>
+            v.id === p.partId &&
+            v.active &&
+            v.vehicleIds.includes(command.form.busId),
+        );
+        if (!part || !Number.isSafeInteger(p.quantity) || p.quantity <= 0)
+          throw new Error("Revisa piezas por pedido y compatibilidad.");
+        p.name = part.name;
+        p.identifier = part.identifier;
+        p.unitCost = part.cost;
+        p.supplier = directory.suppliers.find(
+          (v) => v.id === part.supplierId,
+        )!.name;
+      }
+      if (
+        new Set(command.form.orderedParts?.map((p) => p.partId)).size !==
+        (command.form.orderedParts?.length ?? 0)
+      )
+        throw new Error("No repitas piezas por pedido.");
+      for (const s of command.form.services) {
+        const definition = c.services.find((v) => v.id === s.catalogId);
+        if (definition) {
+          s.maintenanceType =
+            definition.maintenanceType ??
+            (definition.id === "oil-change" ? "preventive" : "corrective");
+          s.freeText = false;
+        } else if (!s.freeText || !s.catalogId.startsWith("free:"))
+          throw new Error("Servicio inexistente.");
+      }
       if (
         new Set(command.form.services.map((s) => s.id)).size !==
           command.form.services.length ||
@@ -332,6 +482,12 @@ export function applyCommand(
         },
       };
       next.workbench = convertRequest(next.workbench, order, user.id);
+      next.workbench = blockForOrder(
+        next.workbench,
+        user,
+        order.form.busId,
+        order.id,
+      );
       break;
     }
     case "order.change":
@@ -424,6 +580,87 @@ export function applyCommand(
         command.notes,
         c.reviews.find((r) => r.id === command.templateId),
       );
+      {
+        const trip = next.trips.find((v) => v.id === command.id)!;
+        const w = structuredClone(workshop(next.workbench));
+        const articles = w.articles.filter(
+          (v) => v.busId === trip.busId && v.active,
+        );
+        const counts = command.articleCounts ?? {};
+        if (
+          articles.some(
+            (v) => !Number.isSafeInteger(counts[v.id]) || counts[v.id] < 0,
+          ) ||
+          Object.keys(counts).some((id) => !articles.some((v) => v.id === id))
+        )
+          throw new Error(
+            "Revisa todos los contadores de artículos de la unidad.",
+          );
+        const snapshots = articles.map((a) => ({
+          articleId: a.id,
+          name: a.name,
+          category: a.category,
+          before: a.quantity,
+          quantity: counts[a.id],
+        }));
+        for (const a of articles)
+          if (a.quantity !== counts[a.id]) {
+            if (!command.notes.trim())
+              throw new Error(
+                "Explica los faltantes o recuperaciones de artículos.",
+              );
+            w.articleMovements.push({
+              id: crypto.randomUUID(),
+              articleId: a.id,
+              busId: trip.busId,
+              name: a.name,
+              before: a.quantity,
+              after: counts[a.id],
+              reason: command.notes,
+              at: new Date().toISOString(),
+              actorId: user.id,
+              actorName: user.name,
+              tripId: trip.id,
+              stage: command.stage,
+              driverId: trip.driverId,
+            });
+            a.quantity = counts[a.id];
+          }
+        trip[command.stage]!.articles = snapshots;
+        trip[command.stage]!.faultKinds = Object.fromEntries(
+          Object.entries(command.faultActions ?? {})
+            .filter(([id]) => command.answers[id] === "fault")
+            .map(([id, action]) => [
+              id,
+              action === "damage" ? "Golpe" : "Falla",
+            ]),
+        );
+        next.workbench.workshop = w;
+        for (const [aspectId, action] of Object.entries(
+          command.faultActions ?? {},
+        )) {
+          const aspect = trip.template!.aspects.find((v) => v.id === aspectId);
+          if (!aspect || command.answers[aspectId] !== "fault")
+            throw new Error(
+              "El reporte debe corresponder a un aspecto con falla.",
+            );
+          if (action === "request")
+            next.workbench.requests.unshift({
+              id: crypto.randomUUID(),
+              busId: trip.busId,
+              title: aspect.text.slice(0, 120),
+              description: command.notes,
+              odometer: "",
+              number: `SOL-${sequence}-${next.workbench.requests.length}`,
+              driverId: user.id,
+              driverName: user.name,
+              createdAt: new Date().toISOString(),
+              status: "pending",
+              sourceIncidentId: `trip:${trip.id}:${command.stage}:${aspectId}`,
+            });
+          // El aspecto fallido ya es un reporte persistente en vehicleIncidents; no duplicarlo.
+        }
+      }
       break;
     case "trip.close":
       next.trips = closeTripCase(next.trips, user, command.id, command.notes);

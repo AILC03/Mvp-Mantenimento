@@ -2,6 +2,8 @@
 
 Fecha: 28 de octubre de 2026. Fuente: aclaraciones directas del usuario posteriores a la revisión local.
 
+**Sustitución parcial posterior:** los [ajustes finales del 07/11/2026](ajustes-finales-mvp-2026-11-07.md) cambian responsables, proveedores/personal, servicios externos vinculados, circulación automática de bloqueo, revisión general a 30 días y los demás puntos allí indicados. Este documento se conserva como antecedente de las decisiones no sustituidas.
+
 Este documento sustituye únicamente los puntos incompatibles del alcance anterior. No convierte todas las brechas de la revisión en tareas obligatorias. Describe trabajo solicitado, no funcionalidades ya terminadas.
 
 **Aclaración posterior del 30/10:** [Autobús y Sprinter de pasajeros](unidades-sprinter-2026-10-30.md). Las claves heredadas `truck`/`TRUCK` significan Sprinter, no carga. Ambas categorías participan en viajes, mantenimiento y circulación; esta aclaración elimina las exclusiones anteriores.

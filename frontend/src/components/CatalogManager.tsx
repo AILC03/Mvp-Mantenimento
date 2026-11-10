@@ -132,7 +132,7 @@ export function CatalogManager({
                 : section === "vehicles"
                   ? "Una ficha por unidad: Autobús o Sprinter de pasajeros."
                   : section === "services"
-                    ? "CAF es el único preventivo. Define instrucciones y materiales necesarios."
+                    ? "Define servicios preventivos o correctivos, instrucciones y materiales necesarios."
                     : "Define la periodicidad y escribe los aspectos que se van a evaluar."}
             </p>
           </div>
@@ -318,10 +318,11 @@ export function CatalogManager({
                     </div>
                   </div>
                   <span
-                    className={`badge ${service.id === "oil-change" ? "green" : "neutral"}`}
+                    className={`badge ${service.maintenanceType === "preventive" || service.id === "oil-change" ? "green" : "neutral"}`}
                   >
-                    {service.id === "oil-change"
-                      ? "Único preventivo · CAF"
+                    {service.maintenanceType === "preventive" ||
+                    service.id === "oil-change"
+                      ? "Preventivo"
                       : "Correctivo"}
                   </span>
                   <button
@@ -605,6 +606,14 @@ function ProductEditor({
             name: text(fields, "name"),
             description: text(fields, "description"),
             unit: text(fields, "unit") as Product["unit"],
+            minStock:
+              text(fields, "minStock") === ""
+                ? null
+                : Number(text(fields, "minStock")),
+            maxStock:
+              text(fields, "maxStock") === ""
+                ? null
+                : Number(text(fields, "maxStock")),
           },
           product
             ? {
@@ -639,6 +648,26 @@ function ProductEditor({
             maxLength={40}
             defaultValue={product?.sku}
             placeholder="Ej. REF-005"
+          />
+        </label>
+        <label className="field">
+          Stock mínimo (opcional)
+          <input
+            name="minStock"
+            type="number"
+            min="0"
+            step={unit === "pza" ? "1" : "0.5"}
+            defaultValue={product?.minStock ?? ""}
+          />
+        </label>
+        <label className="field">
+          Stock máximo (opcional)
+          <input
+            name="maxStock"
+            type="number"
+            min="0"
+            step={unit === "pza" ? "1" : "0.5"}
+            defaultValue={product?.maxStock ?? ""}
           />
         </label>
         <label className="field">
@@ -815,12 +844,14 @@ function VehicleEditor({
           VIN / número de serie
           <input
             name="vin"
+            required={!vehicle || !!vehicle.vin}
             maxLength={17}
             minLength={17}
             defaultValue={vehicle?.vin}
           />
           <small>
-            Opcional. Si se captura, debe tener 17 caracteres válidos.
+            Obligatorio en altas nuevas: 17 caracteres válidos. Se conservan
+            fichas históricas incompletas.
           </small>
         </label>
         <label className="field">
@@ -884,6 +915,8 @@ function ServiceEditor({
         {
           name: text(fields, "name"),
           category: text(fields, "category"),
+          maintenanceType: text(fields, "maintenanceType") as
+            "preventive" | "corrective",
           hours: Number(text(fields, "hours")),
           description: text(fields, "description"),
           materials,
@@ -904,8 +937,8 @@ function ServiceEditor({
     <form onSubmit={submit}>
       <p className="modal-description">
         {service?.id === "oil-change"
-          ? "CAF es el único preventivo. Puedes ajustar instrucciones, tiempo, compatibilidad y materiales."
-          : "Los nuevos servicios son correctivos. CAF ya está disponible como único preventivo."}
+          ? "CAF conserva su clasificación preventiva."
+          : "Registra preventivos o correctivos. Los existentes conservan su clasificación."}
       </p>
       <FormError message={error} />
       <div className="field-grid">
@@ -918,6 +951,30 @@ function ServiceEditor({
             defaultValue={service?.name}
             readOnly={service?.id === "oil-change"}
           />
+        </label>
+        <label className="field">
+          Clasificación
+          <select
+            name="maintenanceType"
+            defaultValue={
+              service?.maintenanceType ??
+              (service?.id === "oil-change" ? "preventive" : "corrective")
+            }
+            disabled={!!service}
+          >
+            <option value="preventive">Preventivo</option>
+            <option value="corrective">Correctivo</option>
+          </select>
+          {service && (
+            <input
+              type="hidden"
+              name="maintenanceType"
+              value={
+                service.maintenanceType ??
+                (service.id === "oil-change" ? "preventive" : "corrective")
+              }
+            />
+          )}
         </label>
         <label className="field">
           Categoría del servicio

@@ -12,6 +12,8 @@ export type IncidentSummary = {
 };
 
 export type ExternalServiceInput = {
+  providerId?: string;
+  orderId?: string;
   kind: "external" | "roadside";
   date: string;
   description: string;
@@ -29,6 +31,8 @@ export type ExternalService = ExternalServiceInput & {
 };
 export type CirculationStatus = "authorized" | "unauthorized" | "unevaluated";
 export type CirculationDecision = {
+  orderId?: string;
+  reason?: string;
   id: string;
   busId: string;
   status: CirculationStatus;
@@ -75,6 +79,37 @@ export function addExternalService(
   if (!managesOrders(user))
     throw new Error("Solo admin o mecánico registra servicios externos.");
   validateExternal(input);
+  if (input.providerId)
+    input = {
+      ...input,
+      provider:
+        data.workshop?.suppliers.find((v) => v.id === input.providerId)?.name ??
+        input.provider,
+    };
+  if (
+    input.providerId &&
+    !data.workshop?.suppliers.some(
+      (v) => v.id === input.providerId && v.kind === "service" && v.active,
+    )
+  )
+    throw new Error("Selecciona un proveedor de servicios activo.");
+  if (input.orderId) {
+    const order = data.orders.find(
+      (v) => v.id === input.orderId && v.form.busId === busId,
+    );
+    if (
+      !order ||
+      order.form.assignee?.kind !== "supplier" ||
+      order.form.assignee.id !== input.providerId
+    )
+      throw new Error(
+        "El proveedor debe coincidir con el responsable externo de la orden de esta unidad.",
+      );
+    if (data.externalServices?.some((v) => v.orderId === input.orderId))
+      throw new Error(
+        "Esta orden ya tiene un servicio externo con costos registrados.",
+      );
+  }
   return {
     ...data,
     externalServices: [
@@ -103,6 +138,18 @@ export function decideCirculation(
     throw new Error("Solo admin o mecánico decide circulación.");
   if (!Object.hasOwn(circulationLabels, status))
     throw new Error("Estado de circulación inválido.");
+  if (
+    status !== "unauthorized" &&
+    data.orders.some(
+      (v) =>
+        v.form.busId === busId &&
+        v.status !== "Finalizada" &&
+        v.status !== "Pausada",
+    )
+  )
+    throw new Error(
+      "Hay órdenes abiertas no pausadas. Pausa o termina todas antes de autorizar circulación.",
+    );
   return {
     ...data,
     circulationDecisions: [
@@ -120,6 +167,21 @@ export function decideCirculation(
 }
 export const latestCirculation = (data: Workbench, busId: string) =>
   data.circulationDecisions?.find((item) => item.busId === busId);
+
+export function blockForOrder(
+  data: Workbench,
+  user: AuthUser,
+  busId: string,
+  orderId: string,
+): Workbench {
+  const previous = latestCirculation(data, busId);
+  if (previous?.status === "unauthorized" && previous.orderId === orderId)
+    return data;
+  const next = decideCirculation(data, user, busId, "unauthorized");
+  next.circulationDecisions![0].orderId = orderId;
+  next.circulationDecisions![0].reason = "Orden abierta o reanudada";
+  return next;
+}
 
 // Campos opcionales para snapshots anteriores; si están presentes, no perderlos al cargar.
 export function validateUnitRecords(

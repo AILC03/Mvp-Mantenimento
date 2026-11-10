@@ -146,3 +146,64 @@
     display: none;
   }
 }
+.history-print-sheet {
+  display: none;
+}
+@media print {
+  @page unit-history {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+  body.printing-history > #root {
+    display: none !important;
+  }
+  body.printing-history > .history-print-sheet {
+    display: block;
+    page: unit-history;
+    color: #000;
+    font:
+      9pt Arial,
+      sans-serif;
+  }
+  body.printing-history,
+  body.printing-history > .history-print-sheet {
+    background: white;
+  }
+  .history-print-sheet table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  .history-print-sheet th,
+  .history-print-sheet td {
+    border: 1px solid #777;
+    padding: 5px;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+  }
+  .history-print-sheet button {
+    display: none !important;
+  }
+  .history-print-sheet details > * {
+    display: block !important;
+  }
+  .history-print-sheet thead {
+    display: table-header-group;
+  }
+  .history-print-sheet .data-table {
+    min-width: 0;
+    font-size: 8pt;
+  }
+  .history-print-sheet > table > thead > tr > th:nth-child(1) {
+    width: 10%;
+  }
+  .history-print-sheet > table > thead > tr > th:nth-child(2) {
+    width: 15%;
+  }
+  .history-print-sheet > table > thead > tr > th:nth-child(3) {
+    width: 25%;
+  }
+  .history-print-sheet > table > thead > tr > th:nth-child(4) {
+    width: 50%;
+  }
+}

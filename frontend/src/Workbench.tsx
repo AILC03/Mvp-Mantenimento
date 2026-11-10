@@ -32,6 +32,7 @@ import {
   ShieldCheck,
   Trash2,
   TriangleAlert,
+  Users,
   Wrench,
   X,
 } from "lucide-react";
@@ -42,7 +43,6 @@ import {
   isOrderForm,
   maintenanceLabel,
   materialTotal,
-  technicians,
   validateOrder,
   type OrderForm,
   type OrderService,
@@ -79,6 +79,11 @@ import { CirculationSummary } from "./components/UnitRecords";
 import { PeriodicReviews } from "./components/PeriodicReviews";
 import { availableStock } from "./orders";
 import { MaterialPicker } from "./components/MaterialPicker";
+import {
+  ResponsiblePicker,
+  WorkshopDirectory,
+} from "./components/WorkshopDirectory";
+import { workshop } from "../../shared/src/workshop";
 
 const DRAFT_KEY = "real-ejecutivo.demo.draft.v1";
 const catalogPages = {
@@ -122,6 +127,8 @@ export default function Workbench({
     | "trip-reviews"
     | "new-service"
     | "vehicle-history"
+    | "suppliers"
+    | "employees"
     | CatalogSection
   >(user.role === "WAREHOUSE_CLERK" ? "materials" : "requests");
   const role =
@@ -152,6 +159,12 @@ export default function Workbench({
   const products = catalogData.products;
   const catalog = catalogData.services;
   const catalogSection = view in catalogPages ? (view as CatalogSection) : null;
+  const directoryTitle =
+    view === "suppliers"
+      ? "Proveedores"
+      : view === "employees"
+        ? "Personal del taller"
+        : "";
   const [form, setForm] = useState<OrderForm>(emptyForm);
   const [initialWorkbench] = useState(() => {
     try {
@@ -167,6 +180,12 @@ export default function Workbench({
     }
   });
   const [workbench, setWorkbench] = useState(initialWorkbench.data);
+  useEffect(() => {
+    if (remoteEnabled()) {
+      setWorkbench(loadWorkbench());
+      setCatalogData(loadCatalogs());
+    }
+  }, [view]);
   const [vehicleId, setVehicleId] = useState("");
   const [focusedOrderId, setFocusedOrderId] = useState<string | undefined>();
   const [orderPicker, setOrderPicker] = useState<{
@@ -262,8 +281,8 @@ export default function Workbench({
   }, [errors]);
 
   useEffect(() => {
-    document.title = `${view === "vehicle-history" ? "Historial de unidad" : view === "trip-reviews" ? "Revisiones" : view === "new-service" ? "Nuevo tipo de servicio" : catalogSection ? catalogPages[catalogSection].title : view === "requests" ? "Solicitudes de servicio" : view === "create" ? "Nueva orden" : "Órdenes de trabajo"} · Real Ejecutivo`;
-  }, [view]);
+    document.title = `${directoryTitle || (view === "vehicle-history" ? "Historial de unidad" : view === "trip-reviews" ? "Revisiones" : view === "new-service" ? "Nuevo tipo de servicio" : catalogSection ? catalogPages[catalogSection].title : view === "requests" ? "Solicitudes de servicio" : view === "create" ? "Nueva orden" : "Órdenes de trabajo")} · Real Ejecutivo`;
+  }, [view, directoryTitle]);
 
   function update<K extends keyof OrderForm>(field: K, value: OrderForm[K]) {
     setForm((previous) => ({ ...previous, [field]: value }));
@@ -283,6 +302,9 @@ export default function Workbench({
     return {
       id: crypto.randomUUID(),
       catalogId: item.id,
+      maintenanceType:
+        item.maintenanceType ??
+        (item.id === "oil-change" ? "preventive" : "corrective"),
       name: item.name,
       category: item.category,
       hours: item.hours,
@@ -422,6 +444,8 @@ export default function Workbench({
     event.preventDefault();
     if (!canManageWork) return;
     const validation = validateOrder(form, buses, products, catalog);
+    if (!form.assignee?.id)
+      validation.push("Selecciona un responsable para toda la orden.");
     setErrors(validation);
     setMessage("");
     if (validation.length) {
@@ -528,7 +552,9 @@ export default function Workbench({
       setWorkbench(loadWorkbench());
       setErrors([]);
       setMessage(
-        "Solicitud guardada y disponible para revisión del mecánico. Aún no es una orden de mantenimiento.",
+        input.reportKind && input.createServiceRequest === false
+          ? "Reporte guardado en el estado de la unidad, sin solicitud de servicio."
+          : "Solicitud guardada y disponible para revisión del mecánico. Aún no es una orden de mantenimiento.",
       );
       return true;
     } catch (error) {
@@ -659,6 +685,30 @@ export default function Workbench({
         </div>
         <span className="nav-label">ESPACIO DE TRABAJO</span>
         <nav aria-label="Navegación principal">
+          {canManageWork && (
+            <>
+              <button
+                className={`nav-item ${view === "suppliers" ? "active" : ""}`}
+                aria-current={view === "suppliers" ? "page" : undefined}
+                onClick={() => {
+                  setView("suppliers");
+                  setMobileNav(false);
+                }}
+              >
+                <Package size={18} aria-hidden="true" /> Proveedores
+              </button>
+              <button
+                className={`nav-item ${view === "employees" ? "active" : ""}`}
+                aria-current={view === "employees" ? "page" : undefined}
+                onClick={() => {
+                  setView("employees");
+                  setMobileNav(false);
+                }}
+              >
+                <Users size={18} aria-hidden="true" /> Personal del taller
+              </button>
+            </>
+          )}
           <span className="nav-item disabled" aria-disabled="true">
             <LayoutDashboard size={18} aria-hidden="true" /> Resumen{" "}
             <small>Próximamente</small>
@@ -789,17 +839,18 @@ export default function Workbench({
             <span>Mantenimiento</span>
             <ChevronRight size={13} aria-hidden="true" />
             <strong>
-              {view === "vehicle-history"
-                ? "Historial de unidad"
-                : view === "trip-reviews"
-                  ? "Revisiones"
-                  : view === "new-service"
-                    ? "Nuevo tipo de servicio"
-                    : catalogSection
-                      ? catalogPages[catalogSection].title
-                      : view === "requests"
-                        ? "Solicitudes de servicio"
-                        : "Órdenes de trabajo"}
+              {directoryTitle ||
+                (view === "vehicle-history"
+                  ? "Historial de unidad"
+                  : view === "trip-reviews"
+                    ? "Revisiones"
+                    : view === "new-service"
+                      ? "Nuevo tipo de servicio"
+                      : catalogSection
+                        ? catalogPages[catalogSection].title
+                        : view === "requests"
+                          ? "Solicitudes de servicio"
+                          : "Órdenes de trabajo")}
             </strong>
           </div>
           <div className="topbar-actions">
@@ -831,38 +882,41 @@ export default function Workbench({
             <div>
               <div className="eyebrow">GESTIÓN DEL TALLER</div>
               <h1>
-                {view === "vehicle-history"
-                  ? "Historial completo de la unidad"
-                  : view === "trip-reviews"
-                    ? "Revisiones"
-                    : view === "new-service"
-                      ? "Nuevo tipo de servicio"
-                      : catalogSection
-                        ? catalogPages[catalogSection].title
-                        : view === "requests"
-                          ? role === "driver"
-                            ? "Solicitar un servicio"
-                            : "Solicitudes de servicio"
-                          : view === "create"
-                            ? "Nueva orden de mantenimiento"
-                            : "Órdenes de trabajo"}
+                {directoryTitle ||
+                  (view === "vehicle-history"
+                    ? "Historial completo de la unidad"
+                    : view === "trip-reviews"
+                      ? "Revisiones"
+                      : view === "new-service"
+                        ? "Nuevo tipo de servicio"
+                        : catalogSection
+                          ? catalogPages[catalogSection].title
+                          : view === "requests"
+                            ? role === "driver"
+                              ? "Solicitar un servicio"
+                              : "Solicitudes de servicio"
+                            : view === "create"
+                              ? "Nueva orden de mantenimiento"
+                              : "Órdenes de trabajo")}
               </h1>
               <p>
-                {view === "vehicle-history"
-                  ? "Servicios, revisiones, golpes, incidencias y costos registrados."
-                  : view === "trip-reviews"
-                    ? "Un caso por viaje: captura pre y post trip, revisión y cierre con historial."
-                    : view === "new-service"
-                      ? "Crea el servicio que falta sin perder la orden en la que estabas trabajando."
-                      : catalogSection
-                        ? catalogPages[catalogSection].description
-                        : view === "requests"
-                          ? role === "driver"
-                            ? "Reporta lo que necesita atención. El mecánico revisará tu solicitud."
-                            : "Del reporte del chofer a una decisión clara para el taller."
-                          : view === "create"
-                            ? "Planifica el trabajo y prepara todo lo que tu equipo necesita."
-                            : "El trabajo del taller, organizado por unidad."}
+                {directoryTitle
+                  ? "Directorio del taller, sin cuentas de acceso para responsables."
+                  : view === "vehicle-history"
+                    ? "Servicios, revisiones, golpes, incidencias y costos registrados."
+                    : view === "trip-reviews"
+                      ? "Un caso por viaje: captura pre y post trip, revisión y cierre con historial."
+                      : view === "new-service"
+                        ? "Crea el servicio que falta sin perder la orden en la que estabas trabajando."
+                        : catalogSection
+                          ? catalogPages[catalogSection].description
+                          : view === "requests"
+                            ? role === "driver"
+                              ? "Reporta lo que necesita atención. El mecánico revisará tu solicitud."
+                              : "Del reporte del chofer a una decisión clara para el taller."
+                            : view === "create"
+                              ? "Planifica el trabajo y prepara todo lo que tu equipo necesita."
+                              : "El trabajo del taller, organizado por unidad."}
               </p>
             </div>
             <span className="heading-icon" aria-hidden="true">
@@ -905,9 +959,16 @@ export default function Workbench({
               {initialWorkbench.error}
             </div>
           )}
-          {view === "vehicle-history" &&
-          canManageWork &&
-          buses.find((vehicle) => vehicle.id === vehicleId) ? (
+          {(view === "suppliers" || view === "employees") && canManageWork ? (
+            <WorkshopDirectory
+              kind={view === "suppliers" ? "supplier" : "employee"}
+              user={user}
+              data={workbench}
+              onCommit={commitWorkbench}
+            />
+          ) : view === "vehicle-history" &&
+            canManageWork &&
+            buses.find((vehicle) => vehicle.id === vehicleId) ? (
             <VehicleHistory
               vehicle={buses.find((vehicle) => vehicle.id === vehicleId)!}
               user={user}
@@ -1109,8 +1170,8 @@ export default function Workbench({
                           <strong>{maintenanceLabel(form.services)}</strong>
                         </div>
                         <small>
-                          Solo CAF es preventivo. Se determina por los servicios
-                          agregados.
+                          Se determina por los servicios agregados, sin
+                          reclasificar el historial.
                         </small>
                       </div>
                       <label className="field">
@@ -1226,6 +1287,105 @@ export default function Workbench({
                             : "Lectura al momento de crear la orden."}
                         </small>
                       </label>
+                      <label className="field">
+                        Fecha estimada de terminación
+                        <input
+                          type="date"
+                          value={form.estimatedCompletion ?? ""}
+                          onChange={(e) =>
+                            update("estimatedCompletion", e.target.value)
+                          }
+                        />
+                      </label>
+                      <ResponsiblePicker
+                        value={form.assignee}
+                        onChange={(v) => update("assignee", v)}
+                        user={user}
+                        data={workbench}
+                        onCommit={commitWorkbench}
+                      />
+                      <label className="field full">
+                        Agregar pieza por pedido (sin stock de almacén)
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            const p = workshop(workbench).parts.find(
+                              (v) => v.id === e.target.value,
+                            );
+                            if (
+                              p &&
+                              !form.orderedParts?.some((v) => v.partId === p.id)
+                            )
+                              update("orderedParts", [
+                                ...(form.orderedParts ?? []),
+                                {
+                                  partId: p.id,
+                                  name: p.name,
+                                  identifier: p.identifier,
+                                  supplier:
+                                    workshop(workbench).suppliers.find(
+                                      (v) => v.id === p.supplierId,
+                                    )?.name ?? "",
+                                  quantity: 1,
+                                  unitCost: p.cost,
+                                },
+                              ]);
+                          }}
+                        >
+                          <option value="">Selecciona pieza compatible</option>
+                          {workshop(workbench)
+                            .parts.filter(
+                              (v) =>
+                                v.active && v.vehicleIds.includes(form.busId),
+                            )
+                            .map((v) => (
+                              <option key={v.id} value={v.id}>
+                                {v.identifier} · {v.name}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                      {(form.orderedParts ?? []).map((p) => (
+                        <div className="field" key={p.partId}>
+                          <label>
+                            {p.identifier} · {p.name}
+                            <input
+                              aria-label={`Cantidad de ${p.name}`}
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={p.quantity}
+                              onChange={(e) =>
+                                update(
+                                  "orderedParts",
+                                  form.orderedParts!.map((v) =>
+                                    v.partId === p.partId
+                                      ? {
+                                          ...v,
+                                          quantity: Number(e.target.value),
+                                        }
+                                      : v,
+                                  ),
+                                )
+                              }
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            className="text-button"
+                            onClick={() =>
+                              update(
+                                "orderedParts",
+                                form.orderedParts!.filter(
+                                  (v) => v.partId !== p.partId,
+                                ),
+                              )
+                            }
+                          >
+                            Retirar pieza
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   </section>
 
@@ -1240,10 +1400,35 @@ export default function Workbench({
                           </span>
                         </h2>
                         <p>
-                          Agrega trabajos y asigna un responsable por servicio.
+                          Agrega trabajos para el mismo responsable. Usa otra
+                          orden para otro responsable.
                         </p>
                       </div>
                     </div>
+                    <button
+                      type="button"
+                      className="button secondary"
+                      onClick={() => {
+                        const id = crypto.randomUUID();
+                        update("services", [
+                          ...form.services,
+                          {
+                            id,
+                            catalogId: `free:${id}`,
+                            name: "Correctivo libre",
+                            category: "Correctivo",
+                            hours: 1,
+                            assignee: "",
+                            instructions: "",
+                            materials: [],
+                            freeText: true,
+                            maintenanceType: "corrective",
+                          },
+                        ]);
+                      }}
+                    >
+                      Agregar correctivo libre
+                    </button>
                     {form.services.length === 0 ? (
                       <div className="services-empty">
                         <span className="empty-icon">
@@ -1275,8 +1460,9 @@ export default function Workbench({
                                   SERVICIO {String(index + 1).padStart(2, "0")}{" "}
                                   <span>
                                     · {service.category} ·{" "}
-                                    {service.catalogId === "oil-change"
-                                      ? "Preventivo CAF"
+                                    {service.maintenanceType === "preventive" ||
+                                    service.catalogId === "oil-change"
+                                      ? "Preventivo"
                                       : "Correctivo"}
                                   </span>
                                 </small>
@@ -1300,20 +1486,17 @@ export default function Workbench({
                             </div>
                             <div className="field-grid">
                               <label className="field">
-                                Responsable
-                                <select
-                                  value={service.assignee}
-                                  onChange={(event) =>
+                                Trabajo a realizar
+                                <input
+                                  readOnly={!service.freeText}
+                                  value={service.name}
+                                  maxLength={150}
+                                  onChange={(e) =>
                                     updateService(service.id, {
-                                      assignee: event.target.value,
+                                      name: e.target.value,
                                     })
                                   }
-                                >
-                                  <option value="">Por asignar</option>
-                                  {technicians.map((name) => (
-                                    <option key={name}>{name}</option>
-                                  ))}
-                                </select>
+                                />
                               </label>
                               <label className="field">
                                 Tiempo estimado

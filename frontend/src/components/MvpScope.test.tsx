@@ -7,6 +7,7 @@ import { persistTripCases, startTripCase } from "../trip-reviews";
 import { emptyForm, type SavedOrder } from "../data";
 import { CirculationSummary, UnitRecords } from "./UnitRecords";
 import { TripIncidents } from "./TripIncidents";
+import { workshopFixture } from "../testing/workshop-fixture";
 
 test("consulta vacía y error de red explícitos, sin simular guardado", async () => {
   const user = userEvent.setup();
@@ -17,18 +18,14 @@ test("consulta vacía y error de red explícitos, sin simular guardado", async (
     } as Response)
     .mockRejectedValueOnce(new TypeError("Sin red"));
   render(<TripIncidents tripId="own-trip" />);
-  await user.click(
-    screen.getByRole("button", { name: "Ver incidencias de la unidad" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Estado de la unidad" }));
   expect(
     await screen.findByText("Sin incidencias activas en esta unidad."),
   ).toBeInTheDocument();
   await user.click(
     screen.getByRole("button", { name: "Cerrar consulta de incidencias" }),
   );
-  await user.click(
-    screen.getByRole("button", { name: "Ver incidencias de la unidad" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Estado de la unidad" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Sin red");
 });
 
@@ -41,22 +38,22 @@ test("fallo de guardado externo conserva campos y no anuncia éxito", async () =
     <UnitRecords
       vehicle={defaultCatalogs().vehicles[0]}
       user={testUsers.mechanic}
-      data={{ orders: [], requests: [] }}
+      data={{ orders: [], requests: [], workshop: workshopFixture() }}
       onCommit={commit}
     />,
   );
   await user.click(
     screen.getByRole("button", {
-      name: "Registrar servicio externo/carretera",
+      name: "Registrar servicio externo",
     }),
   );
   await user.type(
     screen.getByLabelText("Servicio realizado"),
     "Trabajo pendiente de guardar",
   );
-  await user.type(
+  await user.selectOptions(
     screen.getByLabelText("Prestador (empresa/persona)"),
-    "Prestador",
+    "supplier-test",
   );
   await user.click(
     screen.getByRole("button", { name: "Guardar servicio externo" }),
@@ -134,11 +131,11 @@ test.each(["pre", "post"] as const)(
       "Mi captura pendiente",
     );
     await user.click(
-      screen.getByRole("button", { name: "Ver incidencias de la unidad" }),
+      screen.getByRole("button", { name: "Estado de la unidad" }),
     );
     expect(await screen.findByText("Puerta dañada")).toBeInTheDocument();
     const consultation = screen.getByRole("dialog", {
-      name: "Incidencias de la unidad",
+      name: "Estado de la unidad",
     });
     expect(consultation.closest("form")).toBeNull();
     expect(screen.queryByText("Freno reparado")).not.toBeInTheDocument();
@@ -152,7 +149,7 @@ test.each(["pre", "post"] as const)(
       screen.getByRole("button", { name: "Cerrar consulta de incidencias" }),
     );
     expect(
-      screen.queryByRole("dialog", { name: "Incidencias de la unidad" }),
+      screen.queryByRole("dialog", { name: "Estado de la unidad" }),
     ).not.toBeInTheDocument();
     expect(screen.getByLabelText("Observaciones de la revisión")).toHaveValue(
       "Mi captura pendiente",
@@ -167,7 +164,7 @@ test.each(["pre", "post"] as const)(
 
 test("registro externo y decisiones persisten al remontar, historial aislado y cancelar no decide", async () => {
   persistCatalogs(defaultCatalogs());
-  persistWorkbench({ orders: [], requests: [] });
+  persistWorkbench({ orders: [], requests: [], workshop: workshopFixture() });
   const user = userEvent.setup();
   const view = render(<App />);
   async function openUnit() {
@@ -189,16 +186,16 @@ test("registro externo y decisiones persisten al remontar, historial aislado y c
   expect(loadWorkbench().circulationDecisions).toBeUndefined();
   await user.click(
     screen.getByRole("button", {
-      name: "Registrar servicio externo/carretera",
+      name: "Registrar servicio externo",
     }),
   );
   await user.type(
     screen.getByLabelText("Servicio realizado"),
     "Reparación física externa",
   );
-  await user.type(
+  await user.selectOptions(
     screen.getByLabelText("Prestador (empresa/persona)"),
-    "Empresa de prueba",
+    "supplier-test",
   );
   fireEvent.change(screen.getByLabelText("Costo de materiales (MXN)"), {
     target: { value: "10.25" },

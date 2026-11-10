@@ -138,6 +138,40 @@ export function ServiceRequests({
             )}
             <div className="field-grid">
               <label className="field full">
+                Tipo de reporte
+                <select
+                  value={input.reportKind ?? ""}
+                  onChange={(e) =>
+                    setInput({
+                      ...input,
+                      reportKind: (e.target.value || undefined) as
+                        "Golpe" | "Falla" | undefined,
+                    })
+                  }
+                >
+                  <option value="">Solicitud de servicio</option>
+                  <option value="Golpe">
+                    Golpe / incidencia (daño físico)
+                  </option>
+                  <option value="Falla">Falla (mal funcionamiento)</option>
+                </select>
+              </label>
+              {input.reportKind && (
+                <label className="confirmation-check">
+                  <input
+                    type="checkbox"
+                    checked={input.createServiceRequest !== false}
+                    onChange={(e) =>
+                      setInput({
+                        ...input,
+                        createServiceRequest: e.target.checked,
+                      })
+                    }
+                  />
+                  Crear también solicitud de servicio
+                </label>
+              )}
+              <label className="field full">
                 Unidad del reporte <span className="required">*</span>
                 <select
                   required

@@ -1,5 +1,7 @@
 # Órdenes de mantenimiento — primera interfaz
 
+**Antecedente histórico:** la implementación vigente utiliza API/PostgreSQL. Los [ajustes del 07/11/2026](../proyecto/ajustes-finales-mvp-2026-11-07.md) sustituyen la asignación por servicio y la exclusividad preventiva de CAF: responsable único de la orden, catálogo preventivo/correctivo y correctivos libres. No usar las referencias locales de este prototipo como arquitectura actual.
+
 **Estado:** prototipo funcional local solicitado por el usuario, iniciado por la creación de órdenes del mecánico principal. No conectado a la API ni a PostgreSQL.
 
 **Aclaración posterior:** solo CAF es preventivo. Se eliminó la selección libre preventivo/correctivo; la clasificación se deriva de los servicios. También se agregó el flujo de solicitud del chofer → revisión del mecánico → orden vinculada o rechazo. Ver [aclaraciones vigentes](../proyecto/aclaraciones-servicios-y-solicitudes.md).

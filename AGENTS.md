@@ -12,6 +12,8 @@ Estas instrucciones aplican a todo el repositorio. Antes de editar, leer `docs/p
 
 ## Reglas del producto
 
+**Prevalencia posterior:** leer `docs/proyecto/ajustes-finales-mvp-2026-11-07.md`. Las aclaraciones del 07/11 autorizan proveedores/personal sin cuentas, circulación bloqueada desde creación/reanudación de orden, preventivos/correctivos de catálogo y correctivos libres, general 30 días y los demás ajustes allí descritos. Sustituyen exclusivamente los puntos incompatibles siguientes.
+
 - Aplicación web para celulares y computadoras. Interfaz en español, clara, adaptable y consistente con el diseño existente.
 - PostgreSQL y API autenticada son la fuente de verdad. No introducir persistencia operativa en localStorage/sessionStorage ni simular un guardado exitoso ante fallo de red.
 - Validar permisos, referencias, cantidades y transiciones en servidor; ocultar botones no es autorización.
@@ -25,7 +27,7 @@ Estas instrucciones aplican a todo el repositorio. Antes de editar, leer `docs/p
 - Circulación requiere decisión explícita, independiente de órdenes/revisiones. Sin decisión no asumir autorización. Ver especificación vigente para permisos y resumen.
 - Servicios externos/carretera: registro por unidad con costos y prestador; no descuentan inventario. No añadir mano de obra ni gastos externos a órdenes internas.
 - No introducir entregas fuera de turno ni modelado de turnos. Conservar captura al cierre del turno y las entregas/devoluciones actuales.
-- Mantener CAF 15,000 km, general 45 días y emergencia 90 días. Una revisión vencida avisa; no bloquea ni crea órdenes automáticamente.
+- Mantener CAF 15,000 km, general 30 días (ajuste del 07/11) y emergencia 90 días. Una revisión vencida avisa; no bloquea ni crea órdenes automáticamente.
 - Finalizar una orden con materiales exige entrega neta positiva de cada artículo requerido, confirmada por almacén; puede igualar lo estimado. Sin materiales, ese bloqueo no aplica.
 
 ## Arquitectura y cambios

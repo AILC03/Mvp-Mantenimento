@@ -5,6 +5,14 @@ import { domainStorage } from "./storage";
 
 export type TripAnswer = "good" | "fault";
 export type TripInspection = {
+  faultKinds?: Record<string, "Golpe" | "Falla">;
+  articles?: {
+    articleId: string;
+    name: string;
+    category: string;
+    before: number;
+    quantity: number;
+  }[];
   answers: Record<string, TripAnswer>;
   notes: string;
   submittedAt: string;
@@ -96,6 +104,21 @@ export function loadTripCases(raw?: string | null): TripCase[] {
       for (const stage of ["pre", "post"] as const) {
         const inspection = item[stage];
         if (
+          inspection?.articles !== undefined &&
+          (!Array.isArray(inspection.articles) ||
+            inspection.articles.some(
+              (a) =>
+                !a ||
+                typeof a.articleId !== "string" ||
+                typeof a.name !== "string" ||
+                typeof a.category !== "string" ||
+                ![a.before, a.quantity].every(
+                  (n) => Number.isSafeInteger(n) && n >= 0,
+                ),
+            ))
+        )
+          throw new Error();
+        if (
           inspection !== null &&
           (!inspection ||
             !item.template ||
@@ -186,7 +209,11 @@ export function submitTripInspection(
   answers: Record<string, TripAnswer>,
   notes: string,
   template?: ReviewType,
+  articleCounts?: Record<string, number>,
+  faultActions?: Record<string, "report" | "request" | "damage">,
 ): TripCase[] {
+  void articleCounts;
+  void faultActions;
   const item = cases.find((value) => value.id === caseId);
   if (!item || user.role !== "DRIVER" || item.driverId !== user.id)
     throw new Error("Solo el chofer del caso puede capturar sus revisiones.");
@@ -211,6 +238,11 @@ export function submitTripInspection(
     throw new Error("Marca Bien o Con falla en todos los aspectos.");
   if (notes.length > 2000)
     throw new Error("Las observaciones admiten hasta 2000 caracteres.");
+  if (
+    definition.aspects.some((v) => answers[v.id] === "fault") &&
+    !notes.trim()
+  )
+    throw new Error("Las observaciones son obligatorias cuando hay una falla.");
   const inspection: TripInspection = {
     answers: Object.fromEntries(
       definition.aspects.map((aspect) => [aspect.id, answers[aspect.id]]),

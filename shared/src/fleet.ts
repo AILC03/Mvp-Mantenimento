@@ -26,7 +26,8 @@ export type ReviewJob = {
 export type Damage = {
   id: string;
   busId: string;
-  kind: "Golpe" | "Incidencia";
+  kind: "Golpe" | "Incidencia" | "Falla";
+  responsible?: string;
   area: string;
   description: string;
   date: string;
@@ -284,9 +285,9 @@ export function vehicleIncidents(
       sourceId: `damage:${item.id}`,
       busId,
       date: item.date,
-      source: item.kind,
+      source: item.kind === "Incidencia" ? "Golpe" : item.kind,
       title: `${item.area}: ${item.description}`,
-      notes: `Registrado por ${item.actorName}`,
+      notes: `Registrado por ${item.actorName}${item.responsible ? ` · Causante declarado: ${item.responsible}` : ""}`,
     }));
   for (const item of cases.filter(
     (value) => value.busId === busId && value.template,
@@ -302,7 +303,7 @@ export function vehicleIncidents(
             busId,
             date: inspection.submittedAt.slice(0, 10),
             source: `${item.number} · ${stage} trip`,
-            title: aspect.text,
+            title: `${inspection.faultKinds?.[aspect.id] === "Golpe" ? "Golpe" : "Falla"} · ${aspect.text}`,
             notes: inspection.notes,
           });
     }
@@ -338,9 +339,10 @@ export function addDamage(
     area: string;
     description: string;
     date: string;
+    responsible?: string;
   },
 ): Workbench {
-  if (!managesOrders(user))
+  if (!managesOrders(user) && user.role !== "DRIVER")
     throw new Error("Solo mecánico o admin registra incidencias de taller.");
   if (
     !input.area.trim() ||

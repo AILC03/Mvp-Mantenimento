@@ -20,6 +20,7 @@ import {
   availableStock,
   fleetRecords,
   vehicleIncidents,
+  workshop,
   type AuthUser,
   type OperationsState,
   type IncidentSummary,
@@ -63,10 +64,24 @@ export class OperationsService {
   async snapshot(user: AuthUser) {
     const row = await this.initialize();
     const state = structuredClone(row.data) as unknown as OperationsState;
+    state.catalogs.reviews = state.catalogs.reviews.map((r) =>
+      r.id === 'general' && r.intervalDays === 45
+        ? { ...r, intervalDays: 30, version: r.version + 1 }
+        : r,
+    );
     if (user.role === 'DRIVER') {
+      const articles = state.workbench.workshop?.articles ?? [];
       state.catalogs.products = [];
       state.catalogs.services = [];
       state.workbench = {
+        workshop: {
+          suppliers: [],
+          employees: [],
+          parts: [],
+          articleMovements: [],
+          historicalRepairs: [],
+          articles: articles.filter((a) => a.active).map((a) => ({ ...a })),
+        },
         orders: [],
         requests: state.workbench.requests
           .filter((r) => r.driverId === user.id)
@@ -83,7 +98,19 @@ export class OperationsService {
       };
       state.trips = state.trips.filter((t) => t.driverId === user.id);
     } else if (user.role === 'WAREHOUSE_CLERK') {
-      state.workbench = { orders: state.workbench.orders, requests: [] };
+      state.workbench = {
+        orders: state.workbench.orders,
+        requests: [],
+        workshop: state.workbench.workshop
+          ? {
+              ...state.workbench.workshop,
+              employees: [],
+              articles: [],
+              articleMovements: [],
+              historicalRepairs: [],
+            }
+          : undefined,
+      };
       state.catalogs.reviews = [];
       state.trips = [];
     } else if (user.role === 'TECHNICIAN')
@@ -245,6 +272,7 @@ export class OperationsService {
             fleet: z.unknown().optional(),
             externalServices: z.array(z.unknown()).max(10000).optional(),
             circulationDecisions: z.array(z.unknown()).max(10000).optional(),
+            workshop: z.unknown().optional(),
           })
           .strict(),
         trips: z.array(z.unknown()).max(10000),
@@ -353,6 +381,57 @@ export class OperationsService {
     };
     const vehicles = ids(state.catalogs.vehicles);
     const products = ids(state.catalogs.products);
+    const directory = workshop(state.workbench);
+    const suppliers = ids(directory.suppliers);
+    const employees = ids(directory.employees);
+    const parts = ids(directory.parts);
+    const articles = ids(directory.articles);
+    if (
+      directory.parts.some(
+        (p) =>
+          !suppliers.has(p.supplierId) ||
+          p.vehicleIds.some((id) => !vehicles.has(id)),
+      ) ||
+      directory.articles.some((a) => !vehicles.has(a.busId)) ||
+      directory.articleMovements.some(
+        (m) => !vehicles.has(m.busId) || !articles.has(m.articleId),
+      ) ||
+      directory.historicalRepairs.some((h) => !vehicles.has(h.busId))
+    )
+      throw new Error('El directorio contiene referencias inexistentes.');
+    for (const order of state.workbench.orders) {
+      const person = order.form.assignee;
+      if (
+        person &&
+        !(person.kind === 'employee' ? employees : suppliers).has(person.id)
+      )
+        throw new Error('La orden contiene un responsable inexistente.');
+      if (order.form.orderedParts?.some((p) => !parts.has(p.partId)))
+        throw new Error('La orden contiene una pieza por pedido inexistente.');
+    }
+    const externalOrderIds = (state.workbench.externalServices ?? [])
+      .map((v) => v.orderId)
+      .filter((v): v is string => !!v);
+    unique(externalOrderIds);
+    for (const record of state.workbench.externalServices ?? []) {
+      if (record.providerId && !suppliers.has(record.providerId))
+        throw new Error(
+          'El servicio externo contiene un proveedor inexistente.',
+        );
+      if (
+        record.orderId &&
+        !state.workbench.orders.some(
+          (o) =>
+            o.id === record.orderId &&
+            o.form.busId === record.busId &&
+            o.form.assignee?.kind === 'supplier' &&
+            o.form.assignee.id === record.providerId,
+        )
+      )
+        throw new Error(
+          'El servicio externo tiene un vínculo de orden incompatible.',
+        );
+    }
     const fleet = fleetRecords(state.workbench);
     for (const list of [
       fleet.reviewJobs,

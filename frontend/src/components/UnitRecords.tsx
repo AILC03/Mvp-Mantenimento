@@ -13,21 +13,33 @@ import {
 } from "../unit-records";
 import type { CommitWorkbench } from "./OrdersView";
 import { Modal } from "./Modal";
+import { DirectoryForm } from "./WorkshopDirectory";
+import { workshop } from "../../../shared/src/workshop";
 
 export function UnitRecords({
   vehicle,
   user,
   data,
   onCommit,
+  orderId,
 }: {
   vehicle: Vehicle;
   user: AuthUser;
   data: Workbench;
   onCommit: CommitWorkbench;
+  orderId?: string;
 }) {
   const [dialog, setDialog] = useState<"external" | "circulation" | null>(null);
   const [status, setStatus] = useState<CirculationStatus>("unevaluated");
   const [error, setError] = useState("");
+  const assigned = data.orders.find((v) => v.id === orderId)?.form.assignee;
+  const [providerId, setProviderId] = useState(
+    assigned?.kind === "supplier" ? assigned.id : "",
+  );
+  const [addingProvider, setAddingProvider] = useState(false);
+  const [linkedOrder, setLinkedOrder] = useState(
+    assigned?.kind === "supplier" ? (orderId ?? "") : "",
+  );
   const latest = latestCirculation(data, vehicle.id);
   async function commit(
     change: (data: Workbench) => Workbench,
@@ -55,8 +67,8 @@ export function UnitRecords({
         </p>
       )}
       <p>
-        Solo cambia al guardar una decisión explícita. Terminar trabajos no
-        autoriza circulación.
+        Una orden creada o reanudada marca No autorizado. Autorizar requiere una
+        decisión explícita y que las órdenes abiertas estén pausadas.
       </p>
       <div className="order-actions">
         <button
@@ -76,7 +88,7 @@ export function UnitRecords({
             setDialog("external");
           }}
         >
-          Registrar servicio externo/carretera
+          Registrar servicio externo
         </button>
       </div>
       {dialog === "circulation" && (
@@ -131,7 +143,7 @@ export function UnitRecords({
       )}
       {dialog === "external" && (
         <Modal
-          title={`Servicio externo/carretera · ${vehicle.fleetNumber}`}
+          title={`Servicio externo · ${vehicle.fleetNumber}`}
           onClose={() => setDialog(null)}
         >
           <form
@@ -139,12 +151,14 @@ export function UnitRecords({
               e.preventDefault();
               const fields = new FormData(e.currentTarget);
               const input: ExternalServiceInput = {
-                kind: String(
-                  fields.get("kind"),
-                ) as ExternalServiceInput["kind"],
+                kind: "external",
+                providerId,
+                orderId: linkedOrder || undefined,
                 date: String(fields.get("date")),
                 description: String(fields.get("description")),
-                provider: String(fields.get("provider")),
+                provider:
+                  workshop(data).suppliers.find((v) => v.id === providerId)
+                    ?.name ?? "",
                 materialsCost: Number(fields.get("materialsCost")),
                 laborCost: Number(fields.get("laborCost")),
                 notes: String(fields.get("notes")),
@@ -166,11 +180,29 @@ export function UnitRecords({
               </p>
             )}
             <div className="field-grid">
-              <label className="field">
-                Tipo
-                <select name="kind">
-                  <option value="external">Externo</option>
-                  <option value="roadside">Carretera</option>
+              <label className="field full">
+                Orden relacionada (opcional)
+                <select
+                  value={linkedOrder}
+                  onChange={(e) => {
+                    setLinkedOrder(e.target.value);
+                    const o = data.orders.find((v) => v.id === e.target.value);
+                    if (o?.form.assignee?.kind === "supplier")
+                      setProviderId(o.form.assignee.id);
+                  }}
+                >
+                  <option value="">Sin orden</option>
+                  {data.orders
+                    .filter(
+                      (v) =>
+                        v.form.busId === vehicle.id &&
+                        v.form.assignee?.kind === "supplier",
+                    )
+                    .map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.number}
+                      </option>
+                    ))}
                 </select>
               </label>
               <label className="field">
@@ -189,18 +221,37 @@ export function UnitRecords({
               </label>
               <label className="field full">
                 Prestador (empresa/persona)
-                <input name="provider" required maxLength={150} />
+                <select
+                  name="provider"
+                  required
+                  value={providerId}
+                  onChange={(e) => setProviderId(e.target.value)}
+                >
+                  <option value="">Selecciona proveedor de servicios</option>
+                  {workshop(data)
+                    .suppliers.filter((v) => v.active && v.kind === "service")
+                    .map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name} · {v.service}
+                      </option>
+                    ))}
+                </select>
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => setAddingProvider(true)}
+                >
+                  Agregar proveedor de servicios
+                </button>
               </label>
               <label className="field">
                 Costo de materiales (MXN)
                 <input
                   name="materialsCost"
                   type="number"
-                  required
                   min="0"
                   max="1000000000"
                   step="0.01"
-                  defaultValue="0"
                 />
               </label>
               <label className="field">
@@ -237,6 +288,23 @@ export function UnitRecords({
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+      {addingProvider && (
+        <Modal
+          title="Nuevo proveedor de servicios"
+          onClose={() => setAddingProvider(false)}
+        >
+          <DirectoryForm
+            kind="supplier"
+            servicesOnly
+            user={user}
+            onCommit={onCommit}
+            onDone={(id) => {
+              setProviderId(id);
+              setAddingProvider(false);
+            }}
+          />
         </Modal>
       )}
     </section>

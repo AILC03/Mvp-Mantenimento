@@ -26,6 +26,8 @@ import {
 import { Modal } from "./Modal";
 import { TripIncidents } from "./TripIncidents";
 import { remoteEnabled, startOperations } from "../operations-client";
+import { loadWorkbench } from "../requests";
+import { workshop } from "../../../shared/src/workshop";
 
 export function TripReviews({
   user,
@@ -416,7 +418,13 @@ export function TripReviews({
             stage={dialog.kind}
             templates={templates}
             error={dialogError}
-            onSubmit={async (answers, notes, template) => {
+            onSubmit={async (
+              answers,
+              notes,
+              template,
+              articleCounts,
+              faultActions,
+            ) => {
               const saved = await commit(
                 (latest) =>
                   submitTripInspection(
@@ -427,6 +435,8 @@ export function TripReviews({
                     answers,
                     notes,
                     template,
+                    articleCounts,
+                    faultActions,
                   ),
                 dialog.kind === "post"
                   ? "Ambas revisiones están completas. Caso pendiente de revisión por mecánico o admin."
@@ -479,6 +489,12 @@ export function TripReviews({
                   <p className="request-description">
                     {selected[stage].notes || "Sin observaciones adicionales."}
                   </p>
+                  {selected[stage].articles?.map((article) => (
+                    <p key={article.articleId}>
+                      {article.name} · {article.category}: {article.quantity}{" "}
+                      existentes (antes: {article.before})
+                    </p>
+                  ))}
                 </>
               ) : (
                 <p className="modal-description">Pendiente de realizar.</p>
@@ -564,6 +580,8 @@ function TripInspectionForm({
     answers: Record<string, TripAnswer>,
     notes: string,
     template?: ReviewType,
+    articleCounts?: Record<string, number>,
+    faultActions?: Record<string, "report" | "request" | "damage">,
   ) => void;
 }) {
   const available = templates.filter(
@@ -576,13 +594,32 @@ function TripInspectionForm({
   );
   const [answers, setAnswers] = useState<Record<string, TripAnswer>>({});
   const [notes, setNotes] = useState("");
+  const [articles] = useState(() =>
+    workshop(loadWorkbench()).articles.filter(
+      (v) => v.busId === item.busId && v.active,
+    ),
+  );
+  const [counts, setCounts] = useState<Record<string, number>>(() =>
+    Object.fromEntries(articles.map((v) => [v.id, v.quantity])),
+  );
+  const [actions, setActions] = useState<
+    Record<string, "report" | "request" | "damage">
+  >({});
   const template =
     item.template ?? available.find((value) => value.id === templateId);
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        onSubmit(answers, notes, template);
+        onSubmit(
+          answers,
+          notes,
+          template,
+          counts,
+          Object.fromEntries(
+            Object.entries(actions).filter(([id]) => answers[id] === "fault"),
+          ),
+        );
       }}
     >
       <p className="modal-description">
@@ -655,6 +692,31 @@ function TripInspectionForm({
                     </label>
                   ))}
                 </div>
+                {answers[aspect.id] === "fault" && (
+                  <label className="field">
+                    Acción para este aspecto
+                    <select
+                      value={actions[aspect.id] ?? "report"}
+                      onChange={(e) =>
+                        setActions({
+                          ...actions,
+                          [aspect.id]: e.target.value as
+                            "report" | "request" | "damage",
+                        })
+                      }
+                    >
+                      <option value="report">
+                        Reportar falla en estado de la unidad
+                      </option>
+                      <option value="damage">
+                        Reportar golpe / incidencia (daño físico)
+                      </option>
+                      <option value="request">
+                        Crear solicitud de servicio vinculada
+                      </option>
+                    </select>
+                  </label>
+                )}
                 {stage === "post" && (
                   <small>
                     Pre trip:{" "}
@@ -668,13 +730,48 @@ function TripInspectionForm({
           </div>
           <label className="field trip-inspection-notes">
             Observaciones de la revisión
+            <small>Obligatorias con falla o cambio de artículos.</small>
             <textarea
               maxLength={2000}
+              aria-label="Observaciones de la revisión"
+              required={
+                Object.values(answers).includes("fault") ||
+                articles.some((a) => counts[a.id] !== a.quantity)
+              }
               value={notes}
               rows={3}
               onChange={(event) => setNotes(event.target.value)}
             />
           </label>
+          {articles.length > 0 && (
+            <section>
+              <h3>Artículos de la unidad</h3>
+              <p>
+                Registra la cantidad existente. Faltantes y recuperaciones
+                quedan vinculados al chofer y al viaje, sin cobros automáticos.
+              </p>
+              {articles.map((a) => (
+                <label className="field" key={a.id}>
+                  {a.name} · {a.category} · Registrado: {a.quantity}
+                  <input
+                    aria-label={`Cantidad existente de ${a.name}`}
+                    type="number"
+                    min="0"
+                    step="1"
+                    required
+                    value={Number.isFinite(counts[a.id]) ? counts[a.id] : ""}
+                    onChange={(e) =>
+                      setCounts({
+                        ...counts,
+                        [a.id]:
+                          e.target.value === "" ? NaN : Number(e.target.value),
+                      })
+                    }
+                  />
+                </label>
+              ))}
+            </section>
+          )}
           <div className="modal-actions">
             <button type="submit" className="button primary">
               Enviar revisión {stage} trip <ArrowRight size={15} />

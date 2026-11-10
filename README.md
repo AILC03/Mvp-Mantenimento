@@ -2,11 +2,11 @@
 
 Plataforma para gestionar unidades, inspecciones de viaje, incidencias, mantenimiento y materiales de Real Ejecutivo.
 
-**Estado al 30/10/2026:** MVP integrado, con el alcance solicitado el 28/10 y la clasificación Autobús/Sprinter; **no listo para producción**. Catálogos, solicitudes, órdenes, almacén, revisiones, historial, CAF, servicios externos, circulación y borradores privados se guardan en PostgreSQL mediante una API autenticada. La operación no depende de localStorage ni sessionStorage.
+**Estado al 07/11/2026:** MVP integrado con los [ajustes finales solicitados y sus aclaraciones](docs/proyecto/ajustes-finales-mvp-2026-11-07.md); **no listo para producción**. Catálogos, proveedores/personal, piezas compatibles, artículos de unidad, solicitudes, órdenes, almacén, revisiones, antecedentes, historial, CAF, servicios externos, circulación y borradores privados se guardan en PostgreSQL mediante una API autenticada. La operación no depende de localStorage ni sessionStorage.
 
 **Unidades de pasajeros:** las categorías son **Autobús** y **Sprinter**. Ambas pueden realizar todos los flujos, incluidos pre/post y circulación. Las claves heredadas `truck`/`TRUCK` ahora significan Sprinter, no carga: no cambian IDs ni relaciones, ni se crean unidades nuevas. Se mantiene un caso abierto por unidad. Ver [aclaración, compatibilidad y pruebas del 30/10](docs/proyecto/unidades-sprinter-2026-10-30.md).
 
-El [alcance del 28/10](docs/proyecto/decisiones-mvp-2026-10-28.md) prevalece sobre antecedentes incompatibles. Ver [entrega y comprobaciones](docs/proyecto/entrega-alcance-mvp-2026-10-28.md), que distingue criterios de implementación y resultados verificados.
+Los [ajustes del 07/11](docs/proyecto/ajustes-finales-mvp-2026-11-07.md) prevalecen sobre los puntos incompatibles del [alcance del 28/10](docs/proyecto/decisiones-mvp-2026-10-28.md). Ver también la [entrega anterior](docs/proyecto/entrega-alcance-mvp-2026-10-28.md).
 
 Los requerimientos son preliminares; las propuestas técnicas no representan acuerdos finales con el cliente.
 
@@ -31,15 +31,16 @@ docs/
 - Acceso por rol: administrador, mecánico principal, almacén y chofer; permisos validados en servidor.
 - Catálogos de unidades, artículos, servicios/materiales y plantillas de revisión. Solo admin modifica unidades, tipos de revisión y correcciones extraordinarias de CAF.
 - Solicitud del chofer → revisión del mecánico → orden vinculada o rechazo con motivo.
-- Ejecución, pausas y cierre de órdenes sin liberación adicional. Para finalizar se requiere entrega neta positiva de cada material; las órdenes sin materiales no requieren entrega.
+- Ejecución, pausas y cierre sin liberación adicional. Responsable único de taller/proveedor, alta contextual, fecha estimada, servicios de catálogo preventivos/correctivos y correctivos libres. Para finalizar se requiere entrega neta positiva de cada material/pieza requerida; sin materiales no requiere entrega. Almacén registra recepción/entrega/devolución de piezas por pedido, sin convertirlas en stock.
 - Entradas con costo histórico, entregas/devoluciones y existencias transaccionales. Piezas enteras y litros en pasos de 0.5 para cantidades previstas.
-- CAF cada 15,000 km, revisión general cada 45 días y emergencia cada 90 días. El vencimiento avisa, no bloquea.
+- CAF cada 15,000 km, revisión general cada 30 días y emergencia cada 90 días. El vencimiento avisa, no bloquea. Se conservan plantillas históricas capturadas.
 - Historial filtrable, incidencias/reparaciones y revisión pre/post de viaje con cierre único del caso. Cerrar un caso u orden no autoriza circulación.
 - Borradores privados por usuario en PostgreSQL; los formularios aún no guardados viven solo en memoria.
-- Consulta de incidencias activas/resueltas en ventana emergente desde pre/post, sin perder la captura ni exponer el expediente al chofer. Al iniciar un viaje se actualiza el catálogo de unidades desde la API, con carga/error/reintento, incluyendo Autobús y Sprinter.
+- Consulta «Estado de la unidad» en ventana emergente desde pre/post, con detalle, sin perder la captura ni exponer costos/autores ajenos al chofer. Contadores de artículos propios de la unidad con faltantes/recuperaciones auditados; observaciones obligatorias con falla o cambio de cantidad y solicitud vinculada opcional. Al iniciar un viaje se actualiza el catálogo desde la API.
 - Orden física imprimible para eléctrico/carrocero, además de la requisición existente; sin cuentas de técnicos.
-- Servicios externos/carretera por unidad, con prestador, materiales, mano de obra y total derivado en MXN. No afectan inventario ni órdenes internas.
-- Decisiones explícitas de circulación (admin/mecánico), con historial y estado inicial **Sin evaluar**. El resumen para foto manual de Autobús y Sprinter se muestra únicamente al pulsar **Resumen del estado de circulación de las unidades**, en Unidades; sin vista previa desplegada.
+- Servicios externos unificados por unidad (carretera o taller), proveedor, materiales opcionales y mano de obra obligatoria; total derivado en MXN. Vínculo opcional con orden del mismo proveedor, sin duplicar el costo ni descontar inventario.
+- Una orden creada/iniciada/reanudada registra **No autorizado**. Admin/mecánico autorizan explícitamente cuando no hay órdenes abiertas sin pausar; una pausada no impide autorizar. Cierre ofrece autorización opcional. Historial de decisiones y estado inicial **Sin evaluar**. El resumen para foto manual se abre únicamente al pulsar su botón en Unidades.
+- Directorios de proveedores de servicios/materiales y personal sin cuentas de acceso; baja lógica. Piezas compatibles por número de parte y artículos de unidad desde su historial, sin menú independiente. VIN obligatorio en nuevas altas; stock mínimo/máximo opcionales. Antecedentes anteriores al software sin movimientos de stock, impresión horizontal y orden completa emergente.
 - El cierre exige odómetro igual o mayor al de apertura de esa orden, sin bloquear capturas históricas por lecturas posteriores ni corregir registros previos.
 
 ## Arranque local (PowerShell)
@@ -95,11 +96,11 @@ npm --prefix backend test -- --runInBand
 npm --prefix backend run test:database
 ```
 
-Validación del 30/10: **80 pruebas frontend, 33 unitarias backend y 25 HTTP aprobadas**, builds correctos y ESLint del backend afectado sin errores. `test:database` requiere Docker y `.env`: crea una BD temporal propia, aplica migraciones y elimina solo esa BD; no limpia la base operativa. Chrome real verificó escritorio/móvil, Sprinter heredada en los flujos, historial, resumen e impresión PDF, con Storage bloqueado y sin errores JavaScript de página. Detalles en la [aclaración del 30/10](docs/proyecto/unidades-sprinter-2026-10-30.md) y la [entrega previa](docs/proyecto/entrega-alcance-mvp-2026-10-28.md).
+Validación del 07/11: **82 pruebas frontend, 46 unitarias backend y 27 HTTP aprobadas**, builds correctos y ESLint de los archivos backend afectados sin errores. `test:database` requiere Docker y `.env`: crea una BD temporal propia, aplica migraciones y elimina solo esa BD; no limpia la base operativa. Chrome real comprobó escritorio/móvil, alta contextual, orden, historial emergente, pre/post con faltantes/recuperaciones y PDF horizontal, con Storage bloqueado. Ver [alcance, resultados y límites del 07/11](docs/proyecto/ajustes-finales-mvp-2026-11-07.md).
 
 ## Límites y siguientes pasos
 
-Pendientes: normalización por entidad, paginación en servidor, actualización en vivo, respaldo/restauración automatizados, evidencias privadas, gestión completa de cuentas y endurecimiento de producción. Los cambios ajenos se consultan al recargar. Hay avisos de dependencias backend pendientes de resolver; no se forzaron actualizaciones mayores. Usar datos ficticios para demostraciones y no exponer los servidores de desarrollo a Internet.
+Pendientes: normalización por entidad, paginación en servidor, actualización en vivo, respaldo/restauración automatizados, evidencias privadas, gestión completa de cuentas y endurecimiento de producción. Fotos de almacén: futuro máximo de tres por artículo, sin subida implementada. Los límites de stock se capturan sin minería/alertas nuevas; los faltantes no generan cobros. Los cambios ajenos se consultan al recargar. No se forzaron actualizaciones mayores. Usar datos ficticios para demostraciones y no exponer los servidores de desarrollo a Internet.
 
 ## Documentación
 
