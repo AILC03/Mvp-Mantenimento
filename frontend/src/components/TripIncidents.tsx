@@ -8,6 +8,7 @@ export function TripIncidents({ tripId }: { tripId: string }) {
   const [resolved, setResolved] = useState(false);
   const [incidents, setIncidents] = useState<IncidentSummary[] | null>(null);
   const [error, setError] = useState("");
+  const [selected, setSelected] = useState<string | null>(null);
   useEffect(() => {
     if (!open) return;
     const controller = new AbortController();
@@ -51,14 +52,11 @@ export function TripIncidents({ tripId }: { tripId: string }) {
           setOpen(true);
         }}
       >
-        Ver incidencias de la unidad
+        Estado de la unidad
       </button>
       {open &&
         createPortal(
-          <Modal
-            title="Incidencias de la unidad"
-            onClose={() => setOpen(false)}
-          >
+          <Modal title="Estado de la unidad" onClose={() => setOpen(false)}>
             <p>
               Consulta de la unidad de este viaje. No modifica tus respuestas ni
               resuelve fallas.
@@ -83,8 +81,26 @@ export function TripIncidents({ tripId }: { tripId: string }) {
             )}
             {visible?.map((item) => (
               <article className="order-service-detail" key={item.id}>
-                <h3>{item.title}</h3>
-                <p>{item.description}</p>
+                <h3>
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() =>
+                      setSelected(selected === item.id ? null : item.id)
+                    }
+                  >
+                    {item.title}
+                  </button>
+                </h3>
+                {selected === item.id && (
+                  <section aria-label="Detalle del golpe o falla">
+                    <p>{item.description || item.title}</p>
+                    <p>
+                      {item.origin} · {item.date} ·{" "}
+                      {item.resolved ? "Resuelta" : "Pendiente"}
+                    </p>
+                  </section>
+                )}
                 <small>
                   {item.date} · {item.origin} ·{" "}
                   {item.resolved ? "Resuelta" : "Activa"}

@@ -9,7 +9,8 @@ import {
   validateOrder,
   type OrderService,
 } from "./data";
-import { WORKBENCH_KEY } from "./requests";
+import { WORKBENCH_KEY, persistWorkbench } from "./requests";
+import { workshopFixture } from "./testing/workshop-fixture";
 
 async function openOrderEditor() {
   render(<App />);
@@ -47,6 +48,7 @@ test("shows validation without creating an order", async () => {
 });
 
 test("creates a demo order with a service and estimated materials", async () => {
+  persistWorkbench({ orders: [], requests: [], workshop: workshopFixture() });
   const user = userEvent.setup();
   await openOrderEditor();
   await user.selectOptions(screen.getByLabelText(/^Unidad/), "BUS015");
@@ -62,7 +64,7 @@ test("creates a demo order with a service and estimated materials", async () => 
   );
   await user.selectOptions(
     screen.getByLabelText(/^Responsable/),
-    "Carlos Méndez · Mecánico",
+    "employee-test",
   );
   await user.click(screen.getByRole("button", { name: /^Crear orden/ }));
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
@@ -145,9 +147,11 @@ test("classifies only CAF as preventive and derives the classification", () => {
     instructions: "",
     materials: [],
   });
-  expect(maintenanceLabel([service(0)])).toBe("Preventivo · CAF");
+  expect(maintenanceLabel([service(0)])).toBe("Preventivo");
   expect(maintenanceLabel([service(1)])).toBe("Correctivo");
-  expect(maintenanceLabel([service(0), service(1)])).toBe("CAF + correctivos");
+  expect(maintenanceLabel([service(0), service(1)])).toBe(
+    "Preventivos + correctivos",
+  );
 });
 
 async function sendDriverRequest(user: ReturnType<typeof userEvent.setup>) {
@@ -169,6 +173,7 @@ async function sendDriverRequest(user: ReturnType<typeof userEvent.setup>) {
 }
 
 test("driver sends a request and mechanic creates a linked order", async () => {
+  persistWorkbench({ orders: [], requests: [], workshop: workshopFixture() });
   const user = userEvent.setup();
   render(<App />);
   await sendDriverRequest(user);
@@ -203,6 +208,10 @@ test("driver sends a request and mechanic creates a linked order", async () => {
   );
   await user.click(
     screen.getByRole("button", { name: /Diagnóstico y reparación de frenos/ }),
+  );
+  await user.selectOptions(
+    screen.getByLabelText("Responsable de la orden"),
+    "employee-test",
   );
   await user.click(screen.getByRole("button", { name: /^Crear orden/ }));
   const saved = JSON.parse(localStorage.getItem(WORKBENCH_KEY)!);
@@ -255,6 +264,7 @@ test("mechanic must enter a rejection reason and driver can read it", async () =
 });
 
 test("failed conversion does not mark the request as attended", async () => {
+  persistWorkbench({ orders: [], requests: [], workshop: workshopFixture() });
   const user = userEvent.setup();
   render(<App />);
   await sendDriverRequest(user);
@@ -270,6 +280,10 @@ test("failed conversion does not mark the request as attended", async () => {
   await user.click(
     screen.getByRole("button", { name: /Diagnóstico y reparación de frenos/ }),
   );
+  await user.selectOptions(
+    screen.getByLabelText("Responsable de la orden"),
+    "employee-test",
+  );
   vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
     throw new Error("Storage unavailable");
   });
@@ -283,6 +297,7 @@ test("failed conversion does not mark the request as attended", async () => {
 });
 
 test("CAF materials can be edited, removed and added before saving", async () => {
+  persistWorkbench({ orders: [], requests: [], workshop: workshopFixture() });
   const user = userEvent.setup();
   await openOrderEditor();
   await user.selectOptions(screen.getByLabelText(/^Unidad/), "BUS015");
@@ -308,6 +323,10 @@ test("CAF materials can be edited, removed and added before saving", async () =>
   );
   await user.click(
     screen.getByRole("button", { name: "Agregar selección (1)" }),
+  );
+  await user.selectOptions(
+    screen.getByLabelText("Responsable de la orden"),
+    "employee-test",
   );
   await user.click(screen.getByRole("button", { name: /^Crear orden/ }));
   const saved = JSON.parse(localStorage.getItem(WORKBENCH_KEY)!);

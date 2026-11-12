@@ -3,8 +3,10 @@ import userEvent from "@testing-library/user-event";
 import App from "../testing/WorkbenchHarness";
 import { CATALOGS_KEY } from "../catalogs";
 import { persistWorkbench } from "../requests";
+import { workshopFixture } from "../testing/workshop-fixture";
 
 test("creating a service from an order returns to that order with all its existing inputs", async () => {
+  persistWorkbench({ orders: [], requests: [], workshop: workshopFixture() });
   const user = userEvent.setup();
   render(<App />);
   await user.click(screen.getByRole("button", { name: "Nueva orden" }));
@@ -21,8 +23,8 @@ test("creating a service from an order returns to that order with all its existi
     screen.getByRole("button", { name: /CAF · Cambio de aceite y filtro/ }),
   );
   await user.selectOptions(
-    screen.getByLabelText("Responsable"),
-    "Carlos Méndez · Mecánico",
+    screen.getByLabelText("Responsable de la orden"),
+    "employee-test",
   );
   await user.click(
     screen.getByRole("button", { name: "Agregar otro servicio" }),
@@ -43,8 +45,8 @@ test("creating a service from an order returns to that order with all its existi
   expect(screen.getByLabelText(/^Observaciones de la orden/)).toHaveValue(
     "Conservar estas indicaciones",
   );
-  expect(screen.getAllByLabelText("Responsable")[0]).toHaveValue(
-    "Carlos Méndez · Mecánico",
+  expect(screen.getByLabelText("Responsable de la orden")).toHaveValue(
+    "employee-test",
   );
   expect(
     screen.getByRole("heading", { name: "Servicio creado desde orden" }),

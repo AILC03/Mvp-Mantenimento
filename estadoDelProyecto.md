@@ -1,7 +1,11 @@
 # Real Ejecutivo — Estado del proyecto
 
-**Actualización:** 30 de octubre de 2026.
+**Actualización:** 7 de noviembre de 2026.
 **Estado general:** MVP en desarrollo. Autenticación y flujos operativos conectados a backend/PostgreSQL, sin persistencia operativa en localStorage. **No está listo para producción.**
+
+**Entrega más reciente — 07/11:** [ajustes finales y decisiones posteriores](docs/proyecto/ajustes-finales-mvp-2026-11-07.md): proveedores/personal sin cuentas, responsable único, correctivos libres y catálogo mixto sin reclasificar los existentes, piezas por pedido con movimientos de almacén, artículos de unidad con pre/post y recuperaciones auditadas, bloqueo de circulación desde creación/reanudación y autorización explícita con pausadas, servicios externos vinculados sin doble costo, devolución corregible hasta cero, VIN en altas, general 30 días, antecedentes e impresos. Las entregas anteriores descritas abajo son antecedentes en los puntos incompatibles.
+
+**Verificación del 07/11:** 82 pruebas frontend, 46 unitarias backend y 27 HTTP/PostgreSQL aisladas aprobadas; builds correctos y ESLint backend afectado sin errores. Chrome real comprobó escritorio/móvil, alta contextual sin envío accidental de orden, proveedor externo vinculado, expediente/modal, pre/post con recuperación tras recarga y PDFs de orden e historial horizontal. Sin escrituras en la BD operativa ni despliegue. Fotos (futuro máximo tres por artículo), minería/alertas de stock y cobros automáticos no están implementados.
 
 **Aclaración vigente del 30/10:** las unidades anteriormente denominadas de otra manera bajo `truck`/`TRUCK` son **Sprinter de pasajeros**. Ambas categorías (Autobús y Sprinter) aparecen en todos los selectores y participan en viajes, mantenimiento y circulación. Eliminada la exclusión de Sprinter en frontend y regla compartida del servidor; se conservan claves, IDs, historial y vínculos sin migración ni escrituras de reclasificación. Ver [detalle y verificación](docs/proyecto/unidades-sprinter-2026-10-30.md).
 

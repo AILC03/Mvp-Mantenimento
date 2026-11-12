@@ -2,6 +2,7 @@ import { buses, isOrderForm, type SavedOrder, type Vehicle } from "./data";
 import { validFleetRecords, type FleetRecords } from "./fleet";
 import { validOrderMetadata } from "./orders";
 import { domainStorage } from "./storage";
+import { validateWorkshop } from "./workshop";
 import {
   validateUnitRecords,
   type ExternalService,
@@ -12,6 +13,9 @@ export const DRIVER = { id: "driver-demo", name: "José Hernández" };
 export const MECHANIC = { id: "mechanic-demo", name: "Mecánico principal" };
 export type DemoRole = "mechanic" | "driver";
 export type RequestInput = {
+  reportKind?: "Golpe" | "Falla";
+  createServiceRequest?: boolean;
+  sourceIncidentId?: string;
   busId: string;
   title: string;
   description: string;
@@ -49,6 +53,7 @@ export type ServiceRequest = RequestInput & {
   );
 
 export type Workbench = {
+  workshop?: import("./workshop").Workshop;
   orders: SavedOrder[];
   requests: ServiceRequest[];
   fleet?: FleetRecords;
@@ -138,6 +143,10 @@ export function loadWorkbench(raw?: string | null): Workbench {
     if (!Array.isArray(data.orders) || !Array.isArray(data.requests))
       throw new Error("Colecciones inválidas.");
     const result: Workbench = {
+      workshop:
+        data.workshop === undefined
+          ? undefined
+          : validateWorkshop(data.workshop),
       ...validateUnitRecords(data),
       orders: Array.isArray(data.orders)
         ? data.orders.filter((item): item is SavedOrder =>

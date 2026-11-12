@@ -41,7 +41,7 @@ export const defaultCatalogs = (): Catalogs =>
         name: "Revisión general",
         description: "",
         frequency: "days",
-        intervalDays: 45,
+        intervalDays: 30,
         aspects: [],
         version: 1,
       },
@@ -248,6 +248,10 @@ export function saveVehicle(
   const fleetNumber = normalized(input.fleetNumber);
   const plate = normalized(input.plate);
   const vin = normalized(input.vin);
+  if (!vin && (!id || data.vehicles.find((v) => v.id === id)?.vin.trim()))
+    throw new Error(
+      "El VIN es obligatorio para registrar una unidad y no puede retirarse de una ficha completa.",
+    );
   if (!fleetNumber || fleetNumber.length > 30)
     throw new Error("Escribe un número económico de hasta 30 caracteres.");
   if (
@@ -366,11 +370,35 @@ export function saveProduct(
     name: string;
     description: string;
     unit: Product["unit"];
+    minStock?: number | null;
+    maxStock?: number | null;
   },
   initial: EntryInput,
   id?: string,
 ): Catalogs {
   const sku = normalized(input.sku);
+  const previous = data.products.find((item) => item.id === id);
+  input = {
+    ...input,
+    minStock:
+      input.minStock === undefined ? previous?.minStock : input.minStock,
+    maxStock:
+      input.maxStock === undefined ? previous?.maxStock : input.maxStock,
+  };
+  for (const n of [input.minStock, input.maxStock])
+    if (
+      n != null &&
+      (!finite(n) || n < 0 || (input.unit === "pza" && !Number.isInteger(n)))
+    )
+      throw new Error(
+        "Los límites de stock deben ser no negativos y respetar la unidad.",
+      );
+  if (
+    input.minStock != null &&
+    input.maxStock != null &&
+    input.minStock > input.maxStock
+  )
+    throw new Error("El stock mínimo no puede superar al máximo.");
   const name = input.name.trim();
   if (!sku || !name || sku.length > 40 || name.length > 150)
     throw new Error(
@@ -428,7 +456,7 @@ export function saveService(
     /\bCAF\b|CAMBIO\s+DE\s+ACEITE\s+Y\s+FILTRO/i.test(input.name)
   )
     throw new Error(
-      "CAF ya existe y es el único preventivo. Edita el servicio CAF en vez de duplicarlo.",
+      "CAF ya existe. Edita el servicio CAF en vez de duplicarlo.",
     );
   if (!finite(input.hours) || input.hours <= 0)
     throw new Error("El tiempo estimado debe ser mayor a cero.");
@@ -454,8 +482,20 @@ export function saveService(
     throw new Error("No repitas un artículo: ajusta su cantidad.");
   const old = data.services.find((item) => item.id === id);
   if (id && !old) throw new Error("El servicio ya no está disponible.");
+  const previousType =
+    old?.maintenanceType ?? (id === "oil-change" ? "preventive" : "corrective");
+  if (old && input.maintenanceType && input.maintenanceType !== previousType)
+    throw new Error(
+      "La clasificación de los servicios existentes se conserva.",
+    );
+  if (
+    input.maintenanceType &&
+    !["preventive", "corrective"].includes(input.maintenanceType)
+  )
+    throw new Error("Selecciona preventivo o correctivo.");
   const service: CatalogService = {
     ...input,
+    maintenanceType: old ? old.maintenanceType : input.maintenanceType,
     id: old?.id ?? crypto.randomUUID(),
     name:
       id === "oil-change"

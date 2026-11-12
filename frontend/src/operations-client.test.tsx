@@ -88,10 +88,12 @@ test("loads and saves through the API even when browser storage is unavailable",
   await user.click(screen.getByRole("button", { name: "Unidades" }));
   await user.click(screen.getByRole("button", { name: "Nueva unidad" }));
   await user.type(screen.getByLabelText(/Número económico/), "SERVER-001");
-  await user.type(screen.getByLabelText(/Odómetro/), "100");
-  await user.click(
-    screen.getByRole("button", { name: "Guardar" }),
+  await user.type(
+    screen.getByLabelText(/VIN \/ número de serie/),
+    "1HGCM82633A004352",
   );
+  await user.type(screen.getByLabelText(/Odómetro/), "100");
+  await user.click(screen.getByRole("button", { name: "Guardar" }));
   await waitFor(() =>
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
   );
@@ -114,12 +116,14 @@ test("a failed save leaves the form open and does not mutate the memory snapshot
   await user.click(screen.getByRole("button", { name: "Unidades" }));
   await user.click(screen.getByRole("button", { name: "Nueva unidad" }));
   await user.type(screen.getByLabelText(/Número económico/), "NOT-SAVED");
+  await user.type(
+    screen.getByLabelText(/VIN \/ número de serie/),
+    "1HGCM82633A004352",
+  );
   await user.type(screen.getByLabelText(/Odómetro/), "100");
   vi.mocked(fetch).mockRejectedValueOnce(new TypeError("Offline"));
   const before = currentSnapshot();
-  await user.click(
-    screen.getByRole("button", { name: "Guardar" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Guardar" }));
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "No se pudo conectar al servidor",
   );

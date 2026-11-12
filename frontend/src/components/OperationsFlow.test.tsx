@@ -215,7 +215,7 @@ test("mechanic performs a past-due review without assignment and the counter res
     screen.getByRole("button", { name: "Guardar revisión realizada" }),
   );
   expect(
-    screen.getByText("Faltan 45 días. También puedes realizarla antes."),
+    screen.getByText("Faltan 30 días. También puedes realizarla antes."),
   ).toBeInTheDocument();
   const last = fleetRecords(loadWorkbench()).reviewJobs[0];
   expect(last.selfInitiated).toBe(true);

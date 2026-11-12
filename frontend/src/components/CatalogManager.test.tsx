@@ -2,7 +2,8 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "../testing/WorkbenchHarness";
 import { CATALOGS_KEY } from "../catalogs";
-import { WORKBENCH_KEY } from "../requests";
+import { WORKBENCH_KEY, persistWorkbench } from "../requests";
+import { workshopFixture } from "../testing/workshop-fixture";
 
 test("a new Sprinter keeps the legacy truck key and requests survive reload", async () => {
   const user = userEvent.setup();
@@ -15,6 +16,10 @@ test("a new Sprinter keeps the legacy truck key and requests survive reload", as
   await user.click(screen.getByRole("button", { name: "Nueva unidad" }));
   await user.selectOptions(screen.getByLabelText(/^Tipo de unidad/), "truck");
   await user.type(screen.getByLabelText(/^Número económico/), "CAM777");
+  await user.type(
+    screen.getByLabelText(/VIN \/ número de serie/),
+    "1HGCM82633A004352",
+  );
   await user.type(screen.getByLabelText(/^Odómetro \(km\)/), "5000");
   await user.click(screen.getByRole("button", { name: "Guardar" }));
   const catalogs = JSON.parse(localStorage.getItem(CATALOGS_KEY)!);
@@ -41,6 +46,7 @@ test("a new Sprinter keeps the legacy truck key and requests survive reload", as
 });
 
 test("a new warehouse article can be included in a new service and then in an order", async () => {
+  persistWorkbench({ orders: [], requests: [], workshop: workshopFixture() });
   const user = userEvent.setup();
   render(<App />);
   await user.selectOptions(
@@ -103,6 +109,10 @@ test("a new warehouse article can be included in a new service and then in an or
   );
   await user.click(screen.getByRole("button", { name: /Servicio de prueba/ }));
   expect(screen.getByLabelText("Cantidad de Líquido de prueba")).toHaveValue(1);
+  await user.selectOptions(
+    screen.getByLabelText("Responsable de la orden"),
+    "employee-test",
+  );
   await user.click(screen.getByRole("button", { name: /^Crear orden/ }));
   const order = JSON.parse(localStorage.getItem(WORKBENCH_KEY)!).orders[0];
   expect(order.form.services[0].materials[0]).toEqual(

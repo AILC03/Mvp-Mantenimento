@@ -33,6 +33,10 @@ test("driver completes pre/post, mechanic reviews the captures and closes the ca
   await user.click(screen.getByRole("button", { name: "Iniciar caso" }));
   await user.click(screen.getByRole("button", { name: /Realizar pre trip/ }));
   await user.click(screen.getByRole("radio", { name: "Con falla" }));
+  await user.type(
+    screen.getByLabelText("Observaciones de la revisión"),
+    "Detalle de la falla",
+  );
   await user.click(
     screen.getByRole("button", { name: /Enviar revisión pre trip/ }),
   );

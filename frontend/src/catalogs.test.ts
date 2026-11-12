@@ -67,7 +67,7 @@ test("Autobús and Sprinter keep legacy type keys, stable IDs and shared duplica
     fleetNumber: " CAM001 ",
     type: "truck" as const,
     plate: "TR-001",
-    vin: "",
+    vin: "1HGCM82633A004352",
     odometer: 2000,
   };
   const next = saveVehicle(data, input);
@@ -99,7 +99,7 @@ test("services keep CAF unique, allow necessary materials and check compatibilit
   const next = saveService(data, serviceInput);
   const service = next.services.at(-1)!;
   expect(() => saveService(next, { ...serviceInput, name: "CAF" })).toThrow(
-    "único preventivo",
+    "CAF ya existe",
   );
   const edited = saveService(
     next,

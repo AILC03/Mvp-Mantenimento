@@ -20,6 +20,26 @@ export const formSchema = z
   .object({
     busId: z.string().max(100),
     sourceRequestId: id.optional(),
+    assignee: z
+      .object({ kind: z.enum(['employee', 'supplier']), id, name: short })
+      .strict()
+      .optional(),
+    estimatedCompletion: z.string().max(10).optional(),
+    orderedParts: z
+      .array(
+        z
+          .object({
+            partId: id,
+            identifier: short,
+            name: short,
+            supplier: short,
+            quantity: integer,
+            unitCost: amount,
+          })
+          .strict(),
+      )
+      .max(300)
+      .optional(),
     priority: z.enum(['Normal', 'Alta', 'Urgente']),
     reason: text,
     scheduledDate: z.string().max(10),
@@ -30,6 +50,8 @@ export const formSchema = z
           .object({
             id,
             catalogId: id,
+            maintenanceType: z.enum(['preventive', 'corrective']).optional(),
+            freeText: z.boolean().optional(),
             name: short,
             category: short,
             hours: amount,
@@ -78,6 +100,119 @@ const review = z
 const client = { id: id.optional(), clientId: id };
 const commandSchema = z.discriminatedUnion('type', [
   z
+    .object({
+      type: z.literal('workshop.save'),
+      change: z.discriminatedUnion('entity', [
+        z
+          .object({
+            entity: z.literal('supplier'),
+            value: z
+              .object({
+                id,
+                name: short,
+                kind: z.enum(['service', 'materials']),
+                service: short,
+                location: short,
+                phone: short,
+                officePhone: short,
+                email: short,
+                notes: text,
+                active: z.boolean(),
+              })
+              .strict(),
+          })
+          .strict(),
+        z
+          .object({
+            entity: z.literal('employee'),
+            value: z
+              .object({
+                id,
+                name: short,
+                position: short,
+                phone: short,
+                active: z.boolean(),
+              })
+              .strict(),
+          })
+          .strict(),
+        z
+          .object({
+            entity: z.literal('part'),
+            value: z
+              .object({
+                id,
+                identifier: short,
+                name: short,
+                supplierId: id,
+                cost: amount.multipleOf(0.01),
+                notes: text,
+                vehicleIds: z.array(id).min(1).max(1000),
+                active: z.boolean(),
+              })
+              .strict(),
+          })
+          .strict(),
+        z
+          .object({
+            entity: z.literal('article'),
+            value: z
+              .object({
+                id,
+                busId: id,
+                name: short,
+                category: z.enum([
+                  'Herramienta',
+                  'Producto de limpieza',
+                  'Inventario',
+                ]),
+                quantity: integer,
+                active: z.boolean(),
+              })
+              .strict(),
+            reason: text,
+          })
+          .strict(),
+        z
+          .object({
+            entity: z.literal('historical'),
+            value: z
+              .object({
+                id,
+                busId: id,
+                date: z.string().max(10),
+                description: text,
+                provider: short,
+                cost: amount.nullable(),
+                odometer: integer.nullable(),
+                notes: text,
+              })
+              .strict(),
+          })
+          .strict(),
+      ]),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('parts.confirm'),
+      id,
+      lines: z
+        .array(
+          z
+            .object({
+              partId: id,
+              received: integer,
+              delivered: integer,
+              returned: integer,
+            })
+            .strict(),
+        )
+        .max(300),
+      notes: text,
+    })
+    .strict(),
+  z
     .object({ type: z.literal('vehicle.save'), input: vehicle, ...client })
     .strict(),
   z
@@ -89,6 +224,8 @@ const commandSchema = z.discriminatedUnion('type', [
           name: short,
           description: text,
           unit: z.enum(['pza', 'L']),
+          minStock: amount.nullable().optional(),
+          maxStock: amount.nullable().optional(),
         })
         .strict(),
       initial: entry,
@@ -103,6 +240,7 @@ const commandSchema = z.discriminatedUnion('type', [
         .object({
           name: short,
           category: short,
+          maintenanceType: z.enum(['preventive', 'corrective']).optional(),
           hours: amount,
           description: text,
           compatibleVehicleIds: z.array(id).max(1000),
@@ -124,6 +262,9 @@ const commandSchema = z.discriminatedUnion('type', [
         .object({
           busId: id,
           title: z.string().max(120),
+          reportKind: z.enum(['Golpe', 'Falla']).optional(),
+          createServiceRequest: z.boolean().optional(),
+          sourceIncidentId: id.optional(),
           description: z.string().max(2000),
           odometer: z.string().max(16),
         })
@@ -162,6 +303,7 @@ const commandSchema = z.discriminatedUnion('type', [
           date: z.string().max(10),
           odometer: integer,
           performedServiceIds: z.array(id).max(100),
+          authorizeCirculation: z.boolean().optional(),
           unperformedReasons: z.record(id, text),
           notes: text,
         })
@@ -212,7 +354,8 @@ const commandSchema = z.discriminatedUnion('type', [
       vehicleId: id,
       input: z
         .object({
-          kind: z.enum(['Golpe', 'Incidencia']),
+          kind: z.enum(['Golpe', 'Incidencia', 'Falla']),
+          responsible: short.optional(),
           area: short,
           description: text,
           date: z.string().max(10),
@@ -250,6 +393,10 @@ const commandSchema = z.discriminatedUnion('type', [
       answers: record,
       notes: z.string().max(2000),
       templateId: id.optional(),
+      articleCounts: z.record(id, integer).optional(),
+      faultActions: z
+        .record(id, z.enum(['report', 'request', 'damage']))
+        .optional(),
     })
     .strict(),
   z
@@ -262,11 +409,13 @@ const commandSchema = z.discriminatedUnion('type', [
       vehicleId: id,
       input: z
         .object({
-          kind: z.enum(['external', 'roadside']),
+          kind: z.enum(['external', 'roadside']).default('external'),
           date: z.string().max(10),
           description: text,
           provider: short,
-          materialsCost: amount.multipleOf(0.01),
+          providerId: id.optional(),
+          orderId: id.optional(),
+          materialsCost: amount.multipleOf(0.01).default(0),
           laborCost: amount.multipleOf(0.01),
           notes: text,
         })

@@ -1,5 +1,7 @@
 # Requisitos
 
+Alcance vigente: [ajustes finales y aclaraciones del 07/11/2026](../proyecto/ajustes-finales-mvp-2026-11-07.md). Los antecedentes siguientes no sustituyen esas decisiones.
+
 Consultar primero las [aclaraciones vigentes de CAF, revisiones y solicitudes](../proyecto/aclaraciones-servicios-y-solicitudes.md), que corrigen las propuestas indicadas del documento original.
 
 La fuente preliminar es el [documento del MVP](../proyecto/Real_Ejecutivo_Estado_Proyecto_MVP.md), especialmente:

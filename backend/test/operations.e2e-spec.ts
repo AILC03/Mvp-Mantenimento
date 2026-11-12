@@ -38,6 +38,11 @@ databaseTests('Operación completa con PostgreSQL aislado', () => {
     busId: vehicleId,
     sourceRequestId: requestId,
     odometer: '1000',
+    assignee: {
+      kind: 'employee',
+      id: 'workshop-mechanic',
+      name: 'Mecánico del taller',
+    },
     services: [
       {
         id: 'service-1',
@@ -259,7 +264,7 @@ databaseTests('Operación completa con PostgreSQL aislado', () => {
         brand: 'Prueba',
         model: 'Modelo',
         plate: '',
-        vin: '',
+        vin: '1HGCM82633A004352',
         year: 2025,
         odometer: 1000,
         note: '',
@@ -320,6 +325,19 @@ databaseTests('Operación completa con PostgreSQL aislado', () => {
   });
 
   it('comparte solicitudes entre dispositivos sin filtrar datos ajenos al chofer', async () => {
+    await command('mechanic', {
+      type: 'workshop.save',
+      change: {
+        entity: 'employee',
+        value: {
+          id: 'workshop-mechanic',
+          name: 'Mecánico del taller',
+          position: 'Mecánico',
+          phone: '',
+          active: true,
+        },
+      },
+    });
     await command('driver', {
       type: 'request.create',
       clientId: requestId,
@@ -441,7 +459,7 @@ databaseTests('Operación completa con PostgreSQL aislado', () => {
         name: 'General',
         description: '',
         frequency: 'days',
-        intervalDays: 45,
+        intervalDays: 30,
         aspects: [{ id: 'a1', text: 'Frenos' }],
       },
     });
@@ -623,7 +641,9 @@ databaseTests('Operación completa con PostgreSQL aislado', () => {
     expect(after.catalogs).toEqual(before.catalogs);
     expect(after.workbench.orders).toEqual(before.workbench.orders);
     expect(after.workbench.fleet).toEqual(before.workbench.fleet);
-    expect(after.workbench.circulationDecisions).toBeUndefined();
+    expect(after.workbench.circulationDecisions).toEqual(
+      before.workbench.circulationDecisions,
+    );
     expect(
       (await latest('warehouse')).workbench.externalServices,
     ).toBeUndefined();
@@ -632,7 +652,9 @@ databaseTests('Operación completa con PostgreSQL aislado', () => {
 
   it('conserva decisiones explícitas y su historial sin autorización implícita inicial', async () => {
     const before = await latest();
-    expect(before.workbench.circulationDecisions).toBeUndefined();
+    expect(before.workbench.circulationDecisions?.[0].status).toBe(
+      'unauthorized',
+    );
     for (const role of ['driver', 'warehouse', 'technician'])
       await command(
         role,
@@ -650,13 +672,12 @@ databaseTests('Operación completa con PostgreSQL aislado', () => {
       status: 'unauthorized',
     });
     const state = await latest();
-    expect(state.workbench.circulationDecisions?.map((d) => d.status)).toEqual([
-      'unauthorized',
-      'authorized',
-    ]);
-    expect(state.workbench.circulationDecisions?.map((d) => d.actorId)).toEqual(
-      [actorIds.mechanic, actorIds.admin],
-    );
+    expect(
+      state.workbench.circulationDecisions?.slice(0, 2).map((d) => d.status),
+    ).toEqual(['unauthorized', 'authorized']);
+    expect(
+      state.workbench.circulationDecisions?.slice(0, 2).map((d) => d.actorId),
+    ).toEqual([actorIds.mechanic, actorIds.admin]);
     expect(
       state.workbench.circulationDecisions?.every(
         (d) => d.busId === vehicleId && !Number.isNaN(Date.parse(d.recordedAt)),
@@ -764,7 +785,11 @@ databaseTests('Operación completa con PostgreSQL aislado', () => {
     expect(
       after.workbench.orders.find((o) => o.id === id)?.completion?.odometer,
     ).toBe(1000);
-    expect(after.workbench.circulationDecisions).toEqual(
+    expect(after.workbench.circulationDecisions?.[0]).toMatchObject({
+      orderId: id,
+      status: 'unauthorized',
+    });
+    expect(after.workbench.circulationDecisions?.slice(1)).toEqual(
       state.workbench.circulationDecisions,
     );
     expect(after.workbench.externalServices).toEqual(
@@ -932,8 +957,268 @@ databaseTests('Operación completa con PostgreSQL aislado', () => {
     expect(
       after.workbench.circulationDecisions
         ?.filter((r) => r.busId === sprinterId)
+        .slice(0, 2)
         .map((r) => r.status),
     ).toEqual(['unauthorized', 'authorized']);
+  });
+
+  it('registra proveedor, piezas por pedido, recuperación de devolución y cierre explícito con persistencia', async () => {
+    await latest();
+    const supplier = randomUUID(),
+      materials = randomUUID(),
+      part = randomUUID(),
+      id = randomUUID();
+    for (const [pid, kind] of [
+      [supplier, 'service'],
+      [materials, 'materials'],
+    ] as const)
+      await command('mechanic', {
+        type: 'workshop.save',
+        change: {
+          entity: 'supplier',
+          value: {
+            id: pid,
+            name: `Proveedor ${kind}`,
+            kind,
+            service: kind === 'service' ? 'Puertas' : '',
+            location: '',
+            phone: '123456',
+            officePhone: '',
+            email: '',
+            notes: '',
+            active: true,
+          },
+        },
+      });
+    const partChange: Command = {
+      type: 'workshop.save',
+      change: {
+        entity: 'part',
+        value: {
+          id: part,
+          identifier: 'PUERTA-PEDIDO',
+          name: 'Pieza fuera de almacén',
+          supplierId: materials,
+          cost: 100,
+          notes: 'Por pedido',
+          vehicleIds: [vehicleId, sprinterId],
+          active: true,
+        },
+      },
+    };
+    await command('warehouse', partChange, 403);
+    await command('driver', partChange, 403);
+    await command('mechanic', partChange);
+    await command('mechanic', {
+      type: 'order.create',
+      clientId: id,
+      form: {
+        ...form,
+        sourceRequestId: undefined,
+        assignee: { kind: 'supplier', id: supplier, name: 'No confiar' },
+        estimatedCompletion: dateToday(),
+        orderedParts: [
+          {
+            partId: part,
+            identifier: '',
+            name: '',
+            supplier: '',
+            quantity: 1,
+            unitCost: 9999,
+          },
+        ],
+        services: [
+          {
+            id: 'repair',
+            catalogId: 'free:door',
+            name: 'Ajuste de puerta',
+            category: 'Correctivo',
+            hours: 1,
+            assignee: '',
+            instructions: 'Ajustar',
+            freeText: true,
+            maintenanceType: 'corrective',
+            materials: [{ id: 'stock', productId, quantity: 1 }],
+          },
+        ],
+      },
+    });
+    expect((await latest()).workbench.circulationDecisions?.[0]).toMatchObject({
+      status: 'unauthorized',
+      orderId: id,
+    });
+    await command('mechanic', {
+      type: 'order.change',
+      id,
+      action: 'start',
+      notes: '',
+    });
+    await command('mechanic', {
+      type: 'order.change',
+      id,
+      action: 'pause',
+      notes: 'Esperar pieza',
+    });
+    await command('mechanic', {
+      type: 'circulation.decide',
+      vehicleId,
+      status: 'authorized',
+    });
+    await command('mechanic', {
+      type: 'order.change',
+      id,
+      action: 'resume',
+      notes: 'Ya llegó',
+    });
+    expect((await latest()).workbench.circulationDecisions?.[0].status).toBe(
+      'unauthorized',
+    );
+    await command(
+      'warehouse',
+      {
+        type: 'parts.confirm',
+        id,
+        lines: [{ partId: part, received: 0, delivered: 1, returned: 0 }],
+        notes: '',
+      },
+      400,
+    );
+    const received = await command('warehouse', {
+      type: 'parts.confirm',
+      id,
+      lines: [{ partId: part, received: 1, delivered: 1, returned: 0 }],
+      notes: 'Recepción por pedido',
+    });
+    await api()
+      .post('/api/operations/commands')
+      .set('Cookie', cookies.warehouse)
+      .set('Origin', origin)
+      .send(received.envelope)
+      .expect(201);
+    for (const returned of [0, 1, 0])
+      await command('warehouse', {
+        type: 'materials.confirm',
+        id,
+        totals: [{ productId, delivered: 1, returned }],
+        notes: returned === 0 ? 'Se entrega / recupera' : 'Se devuelve',
+      });
+    const input = {
+      kind: 'external' as const,
+      date: dateToday(),
+      description: 'Reparación por proveedor en taller',
+      provider: 'Proveedor service',
+      providerId: supplier,
+      orderId: id,
+      materialsCost: 0,
+      laborCost: 450,
+      notes: '',
+    };
+    await command('mechanic', { type: 'external.record', vehicleId, input });
+    await command(
+      'mechanic',
+      { type: 'external.record', vehicleId, input },
+      400,
+    );
+    await command('mechanic', {
+      type: 'order.finish',
+      id,
+      input: {
+        date: dateToday(),
+        odometer: 1000,
+        performedServiceIds: ['repair'],
+        unperformedReasons: {},
+        notes: 'Revisado',
+        authorizeCirculation: true,
+      },
+    });
+    const state = await latest();
+    const order = state.workbench.orders.find((v) => v.id === id)!;
+    expect(order.status).toBe('Finalizada');
+    expect(order.form.assignee?.name).toBe('Proveedor service');
+    expect(order.form.orderedParts?.[0].unitCost).toBe(100);
+    expect(order.partConfirmations).toHaveLength(1);
+    expect(order.materialConfirmations).toHaveLength(3);
+    expect(order.materialConfirmations?.[2].lines[0].returned).toBe(-1);
+    expect(
+      state.workbench.externalServices?.filter((v) => v.orderId === id),
+    ).toHaveLength(1);
+    expect(state.workbench.circulationDecisions?.[0].status).toBe('authorized');
+    const driverState = await latest('driver');
+    expect(driverState.workbench.workshop?.suppliers).toEqual([]);
+    expect(driverState.workbench.workshop?.parts).toEqual([]);
+  });
+
+  it('pre/post descuenta y recupera artículos auditados y crea solicitud vinculada una sola vez', async () => {
+    await latest();
+    const article = randomUUID(),
+      id = randomUUID();
+    await command('mechanic', {
+      type: 'workshop.save',
+      change: {
+        entity: 'article',
+        value: {
+          id: article,
+          busId: vehicleId,
+          name: 'Herramienta de viaje',
+          category: 'Herramienta',
+          quantity: 2,
+          active: true,
+        },
+        reason: 'Dotación inicial',
+      },
+    });
+    await command('driver', {
+      type: 'trip.start',
+      clientId: id,
+      input: {
+        busId: vehicleId,
+        departureDate: dateToday(),
+        returnDate: dateToday(),
+      },
+    });
+    const pre: Command = {
+      type: 'trip.submit',
+      id,
+      stage: 'pre',
+      templateId: 'trip',
+      answers: { t1: 'fault' },
+      notes: 'Falta herramienta y salida atascada',
+      articleCounts: { [article]: 1 },
+      faultActions: { t1: 'request' },
+    };
+    await command('driver', { ...pre, notes: '' }, 400);
+    const sent = await command('driver', pre);
+    await api()
+      .post('/api/operations/commands')
+      .set('Cookie', cookies.driver)
+      .set('Origin', origin)
+      .send(sent.envelope)
+      .expect(201);
+    await command('driver', {
+      type: 'trip.submit',
+      id,
+      stage: 'post',
+      answers: { t1: 'good' },
+      notes: 'Herramienta recuperada',
+      articleCounts: { [article]: 2 },
+    });
+    const state = await latest();
+    expect(
+      state.workbench.workshop?.articles.find((v) => v.id === article)
+        ?.quantity,
+    ).toBe(2);
+    expect(
+      state.workbench.workshop?.articleMovements.filter((v) => v.tripId === id),
+    ).toHaveLength(2);
+    expect(
+      state.workbench.requests.filter(
+        (v) => v.sourceIncidentId === `trip:${id}:pre:t1`,
+      ),
+    ).toHaveLength(1);
+    expect(
+      state.trips.find((v) => v.id === id)?.pre?.articles?.[0].quantity,
+    ).toBe(1);
+    await command('mechanic', { type: 'trip.close', id, notes: 'Revisado' });
   });
 
   it('Sprinter completa pre/post/cierre manteniendo un solo caso abierto por unidad y roles', async () => {

@@ -35,6 +35,10 @@ import {
   type OrderCategory,
 } from "../orders";
 import { Modal } from "./Modal";
+import { CompleteOrder } from "./CompleteOrder";
+import { UnitRecords } from "./UnitRecords";
+import { applyCommand } from "../../../shared/src/operations";
+import { track } from "../operations-client";
 
 export type CommitWorkbench = (
   change: (latest: Workbench) => Workbench,
@@ -362,6 +366,16 @@ export function OrdersView({
           )}
         <dl className="preview-details">
           <div>
+            <dt>Responsable de toda la orden</dt>
+            <dd>
+              {order.form.assignee?.name || "Asignación histórica por servicio"}
+            </dd>
+          </div>
+          <div>
+            <dt>Terminación estimada</dt>
+            <dd>{order.form.estimatedCompletion || "Sin fecha"}</dd>
+          </div>
+          <div>
             <dt>Unidad</dt>
             <dd>{vehicle?.fleetNumber ?? order.form.busId}</dd>
           </div>
@@ -402,7 +416,8 @@ export function OrdersView({
           <article className="order-service-detail" key={service.id}>
             <h3>{service.name}</h3>
             <p>
-              {service.assignee || "Sin responsable individual"} ·{" "}
+              {!order.form.assignee &&
+                `${service.assignee || "Responsable histórico no registrado"} · `}
               {service.hours} horas estimadas · {service.category}
             </p>
             <p>{service.instructions || "Sin instrucciones adicionales"}</p>
@@ -527,77 +542,163 @@ export function OrdersView({
             {dateToday()}
           </p>
           <p>
-            Solicita: {user.name} · Solicitud de origen:{" "}
-            {source?.number ?? "Orden manual"}
+            {printKind === "order"
+              ? `Capturó: ${order.createdBy?.name ?? "Sin registro"}`
+              : `Solicita: ${user.name}`}{" "}
+            · Solicitud de origen: {source?.number ?? "Orden manual"}
           </p>
           {printKind === "order" && (
-            <>
-              <p>
-                {vehicle?.brand} · {vehicle?.model} · Placa:{" "}
-                {vehicle?.plate || "Sin registro"}
-              </p>
-              <p>
-                Prioridad: {order.form.priority} · Programación:{" "}
-                {order.form.scheduledDate || "Sin fecha"} · Odómetro de
-                apertura: {order.form.odometer} km
-              </p>
-              <p>Observaciones: {order.form.reason || "Sin observaciones"}</p>
-              {order.form.services.map((service) => (
-                <article key={service.id}>
-                  <h2>{service.name}</h2>
-                  <p>
-                    Responsable: {service.assignee || "Por asignar físicamente"}{" "}
-                    · {service.hours} horas estimadas
-                  </p>
-                  <p>
-                    Instrucciones:{" "}
-                    {service.instructions || "Sin instrucciones adicionales"}
-                  </p>
-                </article>
-              ))}
-              <h2>Materiales estimados</h2>
-            </>
+            <CompleteOrder order={order} catalogs={catalogs} data={data} />
           )}
-          <table>
-            <thead>
-              <tr>
-                <th>Código / artículo</th>
-                <th>Unidad</th>
-                <th>Estimada</th>
-                <th>Entregada</th>
-                <th>Devuelta</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const product = catalogs.products.find(
-                  (item) => item.id === row.productId,
-                );
-                return (
-                  <tr key={row.productId}>
-                    <td>
-                      {product?.sku} · {product?.name ?? row.productId}
-                    </td>
-                    <td>{product?.unit}</td>
-                    <td>{row.estimated}</td>
-                    <td>{row.delivered || ""}</td>
-                    <td>{row.returned || ""}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          {printKind !== "order" && (
+            <table>
+              <thead>
+                <tr>
+                  <th>Código / artículo</th>
+                  <th>Unidad</th>
+                  <th>Estimada</th>
+                  <th>Entregada</th>
+                  <th>Devuelta</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => {
+                  const product = catalogs.products.find(
+                    (item) => item.id === row.productId,
+                  );
+                  return (
+                    <tr key={row.productId}>
+                      <td>
+                        {product?.sku} · {product?.name ?? row.productId}
+                      </td>
+                      <td>{product?.unit}</td>
+                      <td>{row.estimated}</td>
+                      <td>{row.delivered || ""}</td>
+                      <td>{row.returned || ""}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
           <p>
             Materiales sujetos a entrega física y confirmación de almacén. Este
             impreso no cambia estados, inventario ni autoriza circulación.
           </p>
           <div className="signature-lines">
-            <span>Solicita: __________________</span>
-            <span>Entrega: __________________</span>
-            <span>Recibe: __________________</span>
+            {printKind === "order" ? (
+              <>
+                <span>
+                  Recibido del responsable: __________________ · Fecha:
+                  __________
+                </span>
+                <span>
+                  Terminado del mecánico: __________________ · Fecha: __________
+                </span>
+              </>
+            ) : (
+              <>
+                <span>Solicita: __________________</span>
+                <span>Entrega: __________________</span>
+                <span>Recibe: __________________</span>
+              </>
+            )}
           </div>
         </section>,
         document.body,
+      )}
+      {canExecute && vehicle && (
+        <UnitRecords
+          vehicle={vehicle}
+          user={user}
+          data={data}
+          onCommit={onCommit}
+          orderId={order.id}
+        />
+      )}
+      {!!order.form.orderedParts?.length && (
+        <section className="card">
+          <h3>Piezas por pedido · Recepción y salida de almacén</h3>
+          {order.form.orderedParts.map((p) => (
+            <p key={p.partId}>
+              {p.identifier} · {p.name} · Solicitado: {p.quantity} · Recibido:{" "}
+              {(order.partConfirmations ?? [])
+                .flatMap((c) => c.lines)
+                .filter((l) => l.partId === p.partId)
+                .reduce((n, l) => n + l.received, 0)}{" "}
+              · Entrega neta:{" "}
+              {(order.partConfirmations ?? [])
+                .flatMap((c) => c.lines)
+                .filter((l) => l.partId === p.partId)
+                .reduce((n, l) => n + l.delivered - l.returned, 0)}
+            </p>
+          ))}
+          {managesStock(user) && order.status !== "Finalizada" && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const f = new FormData(e.currentTarget);
+                const command = {
+                  type: "parts.confirm" as const,
+                  id: order.id,
+                  notes: String(f.get("notes") ?? ""),
+                  lines: order.form.orderedParts!.map((p) => ({
+                    partId: p.partId,
+                    received: Number(f.get(`received:${p.partId}`)),
+                    delivered: Number(f.get(`delivered:${p.partId}`)),
+                    returned: Number(f.get(`returned:${p.partId}`)),
+                  })),
+                };
+                void act(
+                  (latest) =>
+                    track(
+                      applyCommand(
+                        { catalogs, workbench: latest, trips: [] },
+                        user,
+                        command,
+                        0,
+                      ).workbench,
+                      command,
+                    ),
+                  "Movimientos de piezas por pedido registrados por almacén.",
+                );
+              }}
+            >
+              {order.form.orderedParts.map((p) => (
+                <fieldset key={p.partId}>
+                  <legend>
+                    {p.identifier} · {p.name} (movimientos nuevos, no
+                    acumulados)
+                  </legend>
+                  {(["received", "delivered", "returned"] as const).map((k) => (
+                    <label className="field" key={k}>
+                      {k === "received"
+                        ? "Entrada recibida"
+                        : k === "delivered"
+                          ? "Salida entregada"
+                          : "Devolución"}
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        required
+                        name={`${k}:${p.partId}`}
+                        defaultValue="0"
+                      />
+                    </label>
+                  ))}
+                </fieldset>
+              ))}
+              <label className="field">
+                Observaciones
+                <textarea name="notes" maxLength={2000} />
+              </label>
+              <button className="button primary">
+                Confirmar movimientos de piezas
+              </button>
+            </form>
+          )}
+        </section>
       )}
       {dialog === "pause" && (
         <Modal title="Pausar orden" onClose={() => setDialog(null)}>
@@ -704,6 +805,7 @@ function FinishForm({
           performedServiceIds: performed,
           unperformedReasons: reasons,
           notes: String(fields.get("notes") ?? ""),
+          authorizeCirculation: fields.get("authorizeCirculation") === "on",
         });
       }}
     >
@@ -782,6 +884,11 @@ function FinishForm({
           Confirmar finalización
         </button>
       </div>
+      <label className="confirmation-check">
+        <input name="authorizeCirculation" type="checkbox" /> Autorizar
+        circulación al terminar (solo si no quedan otras órdenes abiertas sin
+        pausar)
+      </label>
     </form>
   );
 }
@@ -868,7 +975,7 @@ function MaterialsForm({
                         aria-label={`${field === "delivered" ? "Entregada" : "Devuelta"} ${product?.name}`}
                         type="number"
                         required
-                        min={original[field]}
+                        min={field === "returned" ? 0 : original[field]}
                         step={product?.unit === "pza" ? "1" : "0.001"}
                         value={Number.isFinite(row[field]) ? row[field] : ""}
                         onChange={(event) =>
@@ -899,6 +1006,10 @@ function MaterialsForm({
         Observaciones de entrega o devolución
         <textarea name="notes" maxLength={2000} rows={2} />
       </label>
+      <p>
+        Para reducir una devolución, indica el motivo de corrección o
+        recuperación. El movimiento anterior se conserva y se revalida el stock.
+      </p>
       <p className="section-footnote">
         No se permiten existencias negativas ni devolver más de lo entregado. Si
         no hay stock, registra primero una entrada real en Artículos de almacén.
